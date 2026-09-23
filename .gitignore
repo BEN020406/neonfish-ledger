@@ -1,0 +1,57 @@
+# ─── Ledger data & local backups (real money records, never versioned) ───
+/data.json
+/data.json.bak
+/data_backup.json
+/ledger.db
+/backups/
+/images/
+
+# ─── Credentials & browser session state ───
+/xianyu_cookies.json
+/.browser_data/
+.env
+*.env
+*.pem
+*_rsa
+
+# ─── Python / tooling noise ───
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.log
+
+# ─── Build output & binaries ───
+/dist/
+/build/
+*.exe
+*.apk
+
+# ─── Agent / editor local state ───
+/.agents/
+/.claude/
+/.codex/
+/.superpowers/
+/.mcp.json
+/.migration_done
+
+# ─── Separate projects (own repos or too large to track here) ───
+/Auto-CV/
+/ai-tools/
+/app-apk/
+/design-system/
+/fund-advisor/
+/fund-tracker/
+/fund-trader/
+/game-demo/
+/game-superpowers/
+/goodlish/
+/ledger-agent/
+/ml-intern/
+/msi-game/
+/quant-trader/
+/resume-templates/
+/sql-learning/
+/stock-dashboard/
+/study/
+/tft-assistant/
+/toy project/
