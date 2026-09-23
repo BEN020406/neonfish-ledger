@@ -1,0 +1,2166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NO_object丰收 · CYBERPUNK</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #060b11;
+  --surface: #0a101b;
+  --surface2: #0f1723;
+  --border: #1a2840;
+  --border-glow: #243d60;
+  --cyan: #00e5ff;
+  --magenta: #e040fb;
+  --purple: #7c4dff;
+  --green: #69f0ae;
+  --gold: #ffd740;
+  --red: #ff5252;
+  --amber: #ff9100;
+  --text: #e0e6f0;
+  --text2: #8899bb;
+  --muted: #4a5878;
+  --font: 'DM Sans', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+  --font-display: 'Space Grotesk', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── SCANLINE OVERLAY ─── */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.015) 2px, rgba(0,0,0,0.015) 4px);
+  pointer-events: none; z-index: 0; opacity: 0.25;
+}
+
+/* ─── PARTICLE CANVAS ─── */
+#particles {
+  position: fixed; inset: 0; z-index: 0;
+  pointer-events: none;
+}
+
+/* ─── BACKGROUND AMBIANCE ─── */
+.bg-grid {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(128,216,255,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at 85% 100%, rgba(255,107,203,0.07) 0%, transparent 50%),
+    radial-gradient(circle at 15% 65%, rgba(179,136,255,0.06) 0%, transparent 50%),
+    radial-gradient(circle at 70% 40%, rgba(64,196,255,0.04) 0%, transparent 40%);
+}
+.bg-grid::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(128,216,255,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(179,136,255,0.05) 1px, transparent 1px);
+  background-size: 54px 54px;
+  mask-image: radial-gradient(ellipse at 50% 10%, black 25%, transparent 65%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 10%, black 25%, transparent 65%);
+}
+/* perspective grid lines */
+.bg-grid::after {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg,
+      transparent 0%,
+      rgba(128,216,255,0.03) 15%,
+      rgba(128,216,255,0.07) 30%,
+      rgba(179,136,255,0.05) 45%,
+      rgba(255,107,203,0.04) 60%,
+      rgba(255,107,203,0.07) 75%,
+      transparent 100%);
+  opacity: 0.6;
+}
+
+/* ─── FLOATING NEON ORBS ─── */
+.bg-orbs {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+}
+.bg-orbs::before {
+  content: '';
+  position: absolute;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(128,216,255,0.14) 0%, rgba(128,216,255,0.06) 25%, transparent 55%);
+  top: -150px; right: -80px;
+  animation: orb1 16s ease-in-out infinite;
+}
+.bg-orbs::after {
+  content: '';
+  position: absolute;
+  width: 450px; height: 450px;
+  background: radial-gradient(circle, rgba(255,107,203,0.12) 0%, rgba(255,107,203,0.05) 25%, transparent 55%);
+  bottom: -120px; left: -80px;
+  animation: orb2 20s ease-in-out infinite;
+}
+.bg-orb3 {
+  position: fixed; pointer-events: none; z-index: 0;
+  width: 350px; height: 350px;
+  background: radial-gradient(circle, rgba(179,136,255,0.09) 0%, transparent 55%);
+  top: 50%; left: 60%;
+  animation: orb3 15s ease-in-out infinite;
+}
+.bg-orb4 {
+  position: fixed; pointer-events: none; z-index: 0;
+  width: 250px; height: 250px;
+  background: radial-gradient(circle, rgba(255,128,180,0.08) 0%, transparent 50%);
+  top: 15%; left: 8%;
+  animation: orb4 12s ease-in-out infinite;
+}
+@keyframes orb1 {
+  0%,100% { transform: translate(0,0) scale(1); }
+  33% { transform: translate(-80px,60px) scale(1.25); }
+  66% { transform: translate(40px,-40px) scale(0.82); }
+}
+@keyframes orb2 {
+  0%,100% { transform: translate(0,0) scale(1); }
+  33% { transform: translate(60px,-50px) scale(1.3); }
+  66% { transform: translate(-40px,40px) scale(0.88); }
+}
+@keyframes orb3 {
+  0%,100% { transform: translate(0,0) scale(1); opacity: 0.4; }
+  50% { transform: translate(-40px,-30px) scale(1.4); opacity: 0.8; }
+}
+@keyframes orb4 {
+  0%,100% { transform: translate(0,0) scale(0.8); opacity: 0.3; }
+  50% { transform: translate(30px,25px) scale(1.3); opacity: 0.7; }
+}
+
+/* ─── GEOMETRIC ACCENTS ─── */
+.bg-wire {
+  position: fixed; pointer-events: none; z-index: 0;
+  border: 1px solid rgba(128,216,255,0.07);
+  box-shadow: 0 0 12px rgba(128,216,255,0.04), 0 0 30px rgba(128,216,255,0.02);
+}
+.bg-wire.w1 {
+  width: 320px; height: 320px;
+  border-radius: 50%;
+  top: 30%; left: -80px;
+  animation: wireFloat1 22s linear infinite;
+}
+.bg-wire.w2 {
+  width: 200px; height: 200px;
+  border-radius: 8px;
+  top: 55%; right: -50px;
+  border-color: rgba(255,107,203,0.06);
+  box-shadow: 0 0 12px rgba(255,107,203,0.04);
+  transform: rotate(25deg);
+  animation: wireFloat2 18s linear infinite;
+}
+.bg-wire.w3 {
+  width: 180px; height: 180px;
+  border-radius: 3px;
+  top: 12%; left: 55%;
+  border-color: rgba(179,136,255,0.05);
+  box-shadow: 0 0 12px rgba(179,136,255,0.03);
+  transform: rotate(45deg);
+  animation: wireFloat3 20s linear infinite;
+}
+@keyframes wireFloat1 {
+  0% { transform: translate(0,0) rotate(0deg); }
+  100% { transform: translate(30px,-40px) rotate(360deg); }
+}
+@keyframes wireFloat2 {
+  0% { transform: translate(0,0) rotate(25deg); }
+  100% { transform: translate(-25px,35px) rotate(385deg); }
+}
+@keyframes wireFloat3 {
+  0% { transform: translate(0,0) rotate(45deg); }
+  100% { transform: translate(20px,-25px) rotate(405deg); }
+}
+
+/* ─── DATA STREAM LINES ─── */
+.bg-stream {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
+}
+.bg-stream span {
+  position: absolute; display: block; opacity: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(128,216,255,0.5), transparent);
+  box-shadow: 0 0 6px rgba(128,216,255,0.4);
+  animation: streamGlide 8s ease-in-out infinite;
+}
+.bg-stream span:nth-child(1) { width: 300px; top: 18%; left: -10%; animation-delay: 0s; }
+.bg-stream span:nth-child(2) { width: 220px; top: 42%; left: -8%; animation-delay: 2.5s; background: linear-gradient(90deg, transparent, rgba(255,107,203,0.4), transparent); box-shadow: 0 0 6px rgba(255,107,203,0.35); }
+.bg-stream span:nth-child(3) { width: 260px; top: 68%; left: -6%; animation-delay: 5s; }
+.bg-stream span:nth-child(4) { width: 180px; top: 80%; left: -12%; animation-delay: 1.5s; background: linear-gradient(90deg, transparent, rgba(179,136,255,0.35), transparent); box-shadow: 0 0 6px rgba(179,136,255,0.3); }
+.bg-stream span:nth-child(5) { width: 280px; top: 25%; left: -15%; animation-delay: 3.8s; background: linear-gradient(90deg, transparent, rgba(128,216,255,0.35), transparent); box-shadow: 0 0 6px rgba(128,216,255,0.3); }
+@keyframes streamGlide {
+  0%   { transform: translateX(0); opacity: 0; }
+  15%  { opacity: 0.8; }
+  35%  { opacity: 1; }
+  65%  { opacity: 0.6; }
+  100% { transform: translateX(110vw); opacity: 0; }
+}
+
+.app { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 48px 32px 80px; }
+
+/* ─── HEADER ─── */
+.header { padding: 8px 0 38px; position: relative; }
+.header::after {
+  content: '';
+  display: block; width: 100%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan), var(--magenta), transparent);
+  opacity: 0.3; margin-top: 24px;
+}
+.header-logos { display: flex; align-items: center; gap: 20px; }
+.logo-slot {
+  width: 52px; height: 52px;
+  clip-path: polygon(15% 0%, 100% 0%, 85% 100%, 0% 100%);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface);
+  border: 1px solid rgba(0,229,255,0.15);
+  box-shadow: 0 0 10px rgba(0,229,255,0.08);
+  overflow: hidden; flex-shrink: 0; cursor: pointer;
+  transition: all 0.3s;
+  position: relative;
+}
+.logo-slot::before {
+  content: '';
+  position: absolute; inset: -1px;
+  background: linear-gradient(135deg, var(--cyan), var(--magenta));
+  opacity: 0; transition: opacity 0.3s;
+  clip-path: polygon(15% 0%, 100% 0%, 85% 100%, 0% 100%);
+  z-index: -1;
+}
+.logo-slot.right {
+  clip-path: none;
+  border-radius: 8px;
+}
+.logo-slot.right::before {
+  clip-path: none;
+  border-radius: 8px;
+}
+.logo-slot:hover { border-color: transparent; }
+.logo-slot:hover::before { opacity: 0.5; }
+.logo-slot img { width: 100%; height: 100%; object-fit: contain; }
+.logo-slot .logo-placeholder { font-size: 1rem; color: var(--muted); }
+.header-text { flex: 1; }
+.header h1 {
+  font-size: 1.5rem; font-weight: 900; letter-spacing: 0.12em;
+  line-height: 1.2;
+  color: #e8f8ff;
+  text-shadow: 0 0 18px rgba(128,216,255,0.7), 0 0 40px rgba(128,216,255,0.35), 0 0 70px rgba(179,136,255,0.2);
+  animation: neonBoot 2s ease-out 1 forwards;
+}
+@keyframes neonBoot {
+  0% { text-shadow: 0 0 4px rgba(128,216,255,0.2), 0 0 8px rgba(128,216,255,0.1); }
+  15% { text-shadow: 0 0 30px rgba(128,216,255,0.9), 0 0 60px rgba(255,107,203,0.5); }
+  30% { text-shadow: 0 0 8px rgba(128,216,255,0.3), 0 0 18px rgba(128,216,255,0.15); }
+  45% { text-shadow: 0 0 24px rgba(128,216,255,0.8), 0 0 50px rgba(179,136,255,0.4); }
+  100% { text-shadow: 0 0 18px rgba(128,216,255,0.7), 0 0 40px rgba(128,216,255,0.35), 0 0 70px rgba(179,136,255,0.2); }
+}
+.header .sub {
+  font-size: 0.68rem; color: var(--cyan); letter-spacing: 0.22em; margin-top: 3px;
+  font-family: var(--font-display);
+  text-shadow: 0 0 10px rgba(0,229,255,0.5), 0 0 30px rgba(0,229,255,0.2);
+}
+.header .sub::before { content: '// '; color: var(--muted); }
+.header .sub::after { content: ' //'; color: var(--muted); }
+
+/* ─── STATS ─── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 0.8fr 0.8fr;
+  gap: 14px; margin-bottom: 10px;
+}
+.stat-card {
+  background: linear-gradient(180deg, rgba(15,23,38,0.95) 0%, rgba(10,16,27,0.92) 100%);
+  border: 1px solid rgba(0,229,255,0.12);
+  border-radius: 8px;
+  padding: 18px 20px;
+  transition: all 0.35s cubic-bezier(0.16,1,0.3,1);
+  position: relative;
+  overflow: visible;
+}
+.stat-card::before {
+  content: '';
+  position: absolute; top: -1px; left: 16px; right: 16px; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0,229,255,0.45), transparent);
+  box-shadow: 0 0 8px rgba(0,229,255,0.35);
+  border-radius: 1px;
+  transition: all 0.35s;
+}
+.stat-card::after {
+  content: '';
+  position: absolute; bottom: -1px; left: 30%; right: 30%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(224,64,251,0.2), transparent);
+  opacity: 0.5; border-radius: 1px;
+  transition: all 0.35s;
+}
+.stat-card .corner {
+  position: absolute; top: -1px; left: -1px;
+  width: 14px; height: 14px;
+  border-top: 2px solid rgba(0,229,255,0.5);
+  border-left: 2px solid rgba(0,229,255,0.5);
+  border-radius: 3px 0 0 0;
+  box-shadow: 0 0 6px rgba(0,229,255,0.3);
+  transition: all 0.35s;
+}
+.stat-card:hover {
+  border-color: rgba(0,229,255,0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 0 30px rgba(0,229,255,0.14), 0 0 60px rgba(0,229,255,0.06), 0 12px 40px rgba(0,0,0,0.5);
+}
+.stat-card:hover::before {
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  box-shadow: 0 0 18px rgba(0,229,255,0.7), 0 0 36px rgba(0,229,255,0.35);
+}
+.stat-card:hover::after {
+  background: linear-gradient(90deg, transparent, rgba(224,64,251,0.5), transparent);
+  box-shadow: 0 0 18px rgba(224,64,251,0.5);
+  opacity: 1;
+}
+.stat-card .label {
+  font-size: 0.72rem; color: var(--muted); letter-spacing: 0.1em;
+  margin-bottom: 8px; font-family: var(--font-display); text-transform: uppercase;
+}
+.stat-card .value { font-size: 1.65rem; font-weight: 900; letter-spacing: 0.04em; }
+.stat-card .value.green { color: var(--green); text-shadow: 0 0 18px rgba(105,240,174,0.6), 0 0 40px rgba(105,240,174,0.2); }
+.stat-card .value.red { color: var(--red); text-shadow: 0 0 18px rgba(255,82,82,0.6), 0 0 40px rgba(255,82,82,0.2); }
+.stat-card .value.gold { color: var(--gold); text-shadow: 0 0 18px rgba(255,215,64,0.6), 0 0 40px rgba(255,215,64,0.2); }
+.stat-card .value.cyan { color: var(--cyan); text-shadow: 0 0 18px rgba(0,229,255,0.6), 0 0 40px rgba(0,229,255,0.2); }
+.stat-card .value.magenta { color: var(--magenta); text-shadow: 0 0 18px rgba(224,64,251,0.6), 0 0 40px rgba(224,64,251,0.2); }
+
+/* ─── DIVIDER ─── */
+hr.divider {
+  border: none; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0,229,255,0.35), rgba(224,64,251,0.35), rgba(0,229,255,0.35), transparent);
+  margin: 24px 0 26px;
+  box-shadow: 0 0 8px rgba(0,229,255,0.2);
+}
+
+/* ─── TOOLBAR ─── */
+.toolbar {
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 16px;
+}
+.tab-group {
+  display: flex; gap: 0;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.tab {
+  padding: 7px 18px; border-radius: 4px;
+  border: 1px solid transparent; background: transparent;
+  color: var(--muted); cursor: pointer;
+  font-size: 0.76rem; font-family: var(--font-display); font-weight: 500;
+  letter-spacing: 0.06em;
+  transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
+  position: relative;
+}
+.tab:not(:last-child)::after {
+  content: '';
+  position: absolute; right: -1px; top: 25%; height: 50%; width: 1px;
+  background: var(--border);
+}
+.tab:hover { color: var(--text); background: rgba(0,229,255,0.04); border-color: rgba(0,229,255,0.1); }
+.tab.active {
+  color: var(--cyan); background: rgba(0,229,255,0.08);
+  border-color: rgba(0,229,255,0.25);
+  box-shadow: 0 0 14px rgba(0,229,255,0.12), inset 0 0 8px rgba(0,229,255,0.04);
+  text-shadow: 0 0 12px rgba(0,229,255,0.5);
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+}
+
+.btn {
+  padding: 8px 20px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(15,23,38,0.95) 0%, rgba(10,16,27,0.98) 100%);
+  color: var(--text2); cursor: pointer;
+  font-size: 0.78rem; font-family: var(--font-display); font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
+  white-space: nowrap; position: relative; overflow: hidden;
+  clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+  text-shadow: none;
+}
+.btn::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(0,229,255,0.08) 0%, transparent 50%, rgba(224,64,251,0.06) 100%);
+  opacity: 0; transition: opacity 0.3s;
+}
+.btn::after {
+  content: '';
+  position: absolute; top: 0; left: -100%; width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+  transition: left 0.5s ease;
+}
+.btn:hover {
+  border-color: rgba(0,229,255,0.5); color: var(--cyan);
+  box-shadow: 0 0 16px rgba(0,229,255,0.2), 0 0 40px rgba(0,229,255,0.08), inset 0 1px 0 rgba(0,229,255,0.1);
+  text-shadow: 0 0 12px rgba(0,229,255,0.5);
+  transform: translateY(-1px);
+}
+.btn:hover::before { opacity: 1; }
+.btn:hover::after { left: 120%; }
+.btn:active { transform: translateY(0px) scale(0.98); transition-duration: 0.1s; box-shadow: 0 0 8px rgba(0,229,255,0.15), inset 0 1px 4px rgba(0,0,0,0.3); }
+.btn.primary {
+  background: linear-gradient(135deg, rgba(0,229,255,0.18) 0%, rgba(124,77,255,0.15) 100%);
+  border-color: rgba(0,229,255,0.35); color: var(--cyan);
+  box-shadow: 0 0 12px rgba(0,229,255,0.12);
+}
+.btn.primary:hover {
+  background: linear-gradient(135deg, rgba(0,229,255,0.28) 0%, rgba(124,77,255,0.22) 100%);
+  border-color: rgba(0,229,255,0.6); color: #fff;
+  box-shadow: 0 0 24px rgba(0,229,255,0.3), 0 0 50px rgba(0,229,255,0.1), inset 0 1px 0 rgba(255,255,255,0.1);
+  text-shadow: 0 0 14px rgba(0,229,255,0.7);
+}
+.btn.accent {
+  background: linear-gradient(135deg, var(--magenta), var(--purple));
+  border-color: rgba(224,64,251,0.4); color: #fff; font-weight: 600;
+  box-shadow: 0 0 16px rgba(224,64,251,0.2), 0 0 40px rgba(224,64,251,0.08);
+}
+.btn.accent::before {
+  background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 50%, rgba(255,255,255,0.06) 100%);
+}
+.btn.accent:hover {
+  border-color: rgba(224,64,251,0.7); color: #fff;
+  box-shadow: 0 0 28px rgba(224,64,251,0.4), 0 0 60px rgba(224,64,251,0.15), inset 0 1px 0 rgba(255,255,255,0.15);
+  text-shadow: 0 0 12px rgba(255,255,255,0.5);
+}
+.btn.danger { color: var(--muted); }
+.btn.danger:hover {
+  border-color: rgba(255,82,82,0.5); color: var(--red); background: rgba(255,82,82,0.06);
+  box-shadow: 0 0 16px rgba(255,82,82,0.2), 0 0 40px rgba(255,82,82,0.06), inset 0 1px 0 rgba(255,82,82,0.08);
+  text-shadow: 0 0 10px rgba(255,82,82,0.5);
+}
+
+.search-box {
+  background: rgba(10,16,27,0.9); border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 9px 16px; width: 210px;
+  color: var(--text); font-size: 0.82rem; outline: none;
+  font-family: var(--font); transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+}
+.search-box:focus {
+  border-color: rgba(0,229,255,0.5);
+  box-shadow: 0 0 18px rgba(0,229,255,0.2), 0 0 40px rgba(0,229,255,0.06), inset 0 0 6px rgba(0,229,255,0.08);
+}
+.search-box::placeholder { color: var(--muted); }
+
+/* ─── FILTER CHIP ─── */
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 4px; cursor: pointer;
+  background: rgba(255,214,64,0.06); border: 1px solid rgba(255,214,64,0.28);
+  color: var(--gold); font-size: 0.76rem; letter-spacing: 0.04em;
+  font-family: var(--font-display);
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
+}
+.filter-chip b { font-size: 0.86rem; }
+.filter-chip:hover { background: rgba(255,214,64,0.12); box-shadow: 0 0 16px rgba(255,214,64,0.18); }
+.filter-chip.on {
+  background: rgba(255,214,64,0.9); color: #0a101b; border-color: var(--gold);
+  box-shadow: 0 0 22px rgba(255,214,64,0.4);
+}
+
+/* ─── TOAST ─── */
+#toast {
+  position: fixed; left: 50%; bottom: 36px; z-index: 300;
+  transform: translate(-50%, 14px); opacity: 0; pointer-events: none;
+  padding: 11px 22px; border-radius: 4px;
+  background: rgba(10,16,27,0.97); border: 1px solid var(--border);
+  color: var(--text); font-size: 0.82rem; letter-spacing: 0.03em;
+  clip-path: polygon(7px 0%, 100% 0%, calc(100% - 7px) 100%, 0% 100%);
+  transition: opacity 0.32s cubic-bezier(0.16,1,0.3,1), transform 0.32s cubic-bezier(0.16,1,0.3,1);
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+#toast.ok {
+  color: var(--green); border-color: rgba(105,240,174,0.5);
+  box-shadow: 0 0 26px rgba(105,240,174,0.2), 0 10px 34px rgba(0,0,0,0.55);
+}
+#toast.err {
+  color: var(--red); border-color: rgba(255,82,82,0.5);
+  box-shadow: 0 0 26px rgba(255,82,82,0.2), 0 10px 34px rgba(0,0,0,0.55);
+}
+
+/* ─── TABLE ─── */
+.table-wrap {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(15,23,38,0.95) 0%, rgba(10,16,27,0.9) 100%);
+  overflow-x: auto;
+}
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th {
+  padding: 13px 16px; text-align: left;
+  font-size: 0.7rem; font-weight: 600; color: var(--cyan); letter-spacing: 0.08em;
+  border-bottom: 2px solid rgba(0,229,255,0.2);
+  background: rgba(0,180,220,0.04);
+  font-family: var(--font-display); text-transform: uppercase;
+  text-shadow: 0 0 10px rgba(0,229,255,0.3);
+  cursor: pointer; user-select: none;
+  white-space: nowrap;
+}
+th:hover { background: rgba(0,229,255,0.06); }
+th .sort-arrow { margin-left: 4px; font-size: 0.6rem; opacity: 0.5; }
+th.sorted .sort-arrow { opacity: 1; color: var(--cyan); }
+td { padding: 11px 16px; border-bottom: 1px solid rgba(26,40,64,0.4); }
+tr:last-child td { border-bottom: none; }
+.expand-arrow { display: inline-block; width: 18px; text-align: center; font-size: 0.6rem; color: var(--cyan); transition: transform 0.2s; vertical-align: 0px; }
+.expand-arrow.open { transform: rotate(90deg); }
+tr.clickable { cursor: pointer; transition: all 0.15s; }
+tr.clickable:hover td { background: rgba(0,229,255,0.03); }
+tr:hover td { background: rgba(255,255,255,0.01); }
+
+.actions { display: flex; gap: 4px; }
+.icon-btn {
+  width: 30px; height: 30px;
+  border-radius: 4px;
+  border: 1px solid transparent; background: transparent;
+  color: var(--muted); cursor: pointer; font-size: 0.8rem;
+  transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.icon-btn:hover {
+  border-color: rgba(0,229,255,0.35); color: var(--cyan);
+  background: rgba(0,229,255,0.06);
+  box-shadow: 0 0 12px rgba(0,229,255,0.15), inset 0 0 8px rgba(0,229,255,0.05);
+  transform: translateY(-1px);
+}
+.icon-btn:active { transform: translateY(0) scale(0.92); }
+.icon-btn.danger:hover {
+  border-color: rgba(255,82,82,0.35); color: var(--red);
+  background: rgba(255,82,82,0.06);
+  box-shadow: 0 0 12px rgba(255,82,82,0.15), inset 0 0 8px rgba(255,82,82,0.05);
+}
+
+.badge {
+  display: inline-block; padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 0.74rem; font-weight: 600; letter-spacing: 0.03em;
+}
+.badge-profit { background: rgba(105,240,174,0.12); color: var(--green); border: 1px solid rgba(105,240,174,0.3); text-shadow: 0 0 8px rgba(105,240,174,0.3); }
+.badge-loss { background: rgba(255,82,82,0.12); color: var(--red); border: 1px solid rgba(255,82,82,0.3); text-shadow: 0 0 8px rgba(255,82,82,0.3); }
+
+.profit-positive { color: var(--green); text-shadow: 0 0 10px rgba(105,240,174,0.3); }
+.profit-negative { color: var(--red); text-shadow: 0 0 10px rgba(255,82,82,0.3); }
+
+.bar-cell { min-width: 180px; }
+.bar-wrap { display: flex; align-items: center; gap: 10px; }
+.bar { height: 4px; transition: width 0.8s cubic-bezier(0.16,1,0.3,1); }
+.bar.cyan { background: var(--cyan); box-shadow: 0 0 8px rgba(0,229,255,0.5); }
+.bar.magenta { background: var(--magenta); box-shadow: 0 0 8px rgba(224,64,251,0.5); }
+.bar.purple { background: var(--purple); box-shadow: 0 0 8px rgba(124,77,255,0.5); }
+.bar.green { background: var(--green); box-shadow: 0 0 8px rgba(105,240,174,0.5); }
+.bar.gold { background: var(--gold); box-shadow: 0 0 8px rgba(255,215,64,0.5); }
+
+.model-detail { display: none; }
+.model-detail.active { display: table-row; animation: detailExpand 0.25s ease; }
+@keyframes detailExpand { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
+.model-detail td {
+  padding: 20px 16px 20px 48px;
+  background: rgba(6,11,17,0.6);
+  border-left: 2px solid rgba(0,229,255,0.3);
+  box-shadow: inset 2px 0 8px rgba(0,229,255,0.04);
+}
+.model-table { width: 100%; font-size: 0.78rem; border-collapse: collapse; }
+.model-table th {
+  font-size: 0.62rem; padding: 8px 10px; color: var(--muted);
+  background: transparent; border-bottom: 1px solid var(--border);
+}
+.model-table td { padding: 8px 10px; border-bottom: 1px solid rgba(26,40,64,0.25); }
+.model-table tr:hover td { background: rgba(0,229,255,0.015); }
+
+/* ─── MODAL ─── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(3,6,12,0.85);
+  backdrop-filter: blur(6px);
+  display: none; align-items: center; justify-content: center;
+}
+.modal-overlay.active { display: flex; }
+.modal {
+  background: linear-gradient(170deg, rgba(15,23,40,0.98) 0%, rgba(10,16,27,0.95) 100%);
+  border: 1px solid rgba(0,229,255,0.2);
+  border-radius: 10px;
+  padding: 34px 32px; max-width: 480px; width: 92%;
+  box-shadow: 0 0 80px rgba(0,229,255,0.1), 0 0 120px rgba(224,64,251,0.04), 0 20px 60px rgba(0,0,0,0.6);
+  animation: modalIn 0.25s cubic-bezier(0.16,1,0.3,1);
+  position: relative;
+}
+.modal::before {
+  content: '';
+  position: absolute; top: -1px; left: 20px; right: 20px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan), var(--magenta), transparent);
+  opacity: 0.8;
+  box-shadow: 0 0 8px rgba(0,229,255,0.5), 0 0 20px rgba(224,64,251,0.3);
+}
+@keyframes modalIn { from { opacity: 0; transform: translateY(20px) scale(0.96); } }
+.modal h2 {
+  font-size: 1rem; font-weight: 700; color: var(--cyan);
+  margin-bottom: 24px; letter-spacing: 0.1em;
+  text-shadow: 0 0 16px rgba(0,229,255,0.5), 0 0 40px rgba(0,229,255,0.15);
+}
+.modal .field { margin-bottom: 16px; }
+.modal label {
+  display: block; font-size: 0.64rem; color: var(--muted);
+  letter-spacing: 0.1em; margin-bottom: 6px;
+  font-family: var(--font-display); text-transform: uppercase;
+}
+.modal input {
+  width: 100%; padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--text); font-size: 0.84rem; outline: none;
+  font-family: var(--font); transition: all 0.25s;
+}
+.modal input:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 20px rgba(0,229,255,0.25), 0 0 40px rgba(0,229,255,0.06), inset 0 0 6px rgba(0,229,255,0.1);
+}
+.modal select {
+  width: 100%; padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--text); font-size: 0.84rem; outline: none;
+  font-family: var(--font); transition: all 0.25s; cursor: pointer;
+}
+.modal select:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 20px rgba(0,229,255,0.25), 0 0 40px rgba(0,229,255,0.06), inset 0 0 6px rgba(0,229,255,0.1);
+}
+.modal select option {
+  background: var(--surface); color: var(--text);
+}
+#priceHint {
+  margin-top: 6px; padding: 5px 10px;
+  border-radius: 4px; font-size: 0.66rem;
+  font-family: var(--font-display); letter-spacing: 0.03em;
+  transition: all 0.2s;
+}
+.modal .btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 26px; }
+
+/* ─── FOOTER ─── */
+.footer {
+  text-align: center; padding: 30px 0 10px; color: var(--muted);
+  font-size: 0.66rem; font-family: var(--font-display); letter-spacing: 0.1em;
+}
+
+/* ─── PLATFORM BADGES ─── */
+.platform-badge {
+  display: inline-block; padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 0.04em;
+  margin-left: 6px; vertical-align: 1px;
+  font-family: var(--font-display);
+}
+.platform-AM5 { background: rgba(255,145,0,0.15); color: #ff9100; border: 1px solid rgba(255,145,0,0.3); text-shadow: 0 0 6px rgba(255,145,0,0.3); }
+.platform-AM4 { background: rgba(255,180,40,0.12); color: #ffb428; border: 1px solid rgba(255,180,40,0.25); text-shadow: 0 0 6px rgba(255,180,40,0.25); }
+.platform-LGA1851 { background: rgba(100,220,255,0.12); color: #64dcff; border: 1px solid rgba(100,220,255,0.25); text-shadow: 0 0 6px rgba(100,220,255,0.3); }
+.platform-LGA1700 { background: rgba(0,200,255,0.12); color: #00c8ff; border: 1px solid rgba(0,200,255,0.25); text-shadow: 0 0 6px rgba(0,200,255,0.3); }
+.platform-LGA1200 { background: rgba(0,160,240,0.12); color: #00a0f0; border: 1px solid rgba(0,160,240,0.25); text-shadow: 0 0 6px rgba(0,160,240,0.25); }
+.platform-LGA2011 { background: rgba(180,180,200,0.12); color: #b4b4c8; border: 1px solid rgba(180,180,200,0.25); }
+.platform-CPU { background: rgba(255,100,100,0.12); color: #ff6464; border: 1px solid rgba(255,100,100,0.25); text-shadow: 0 0 6px rgba(255,100,100,0.25); }
+.platform-内存 { background: rgba(100,255,218,0.12); color: #64ffda; border: 1px solid rgba(100,255,218,0.25); text-shadow: 0 0 6px rgba(100,255,218,0.3); }
+.platform-硬盘 { background: rgba(255,215,0,0.12); color: #ffd700; border: 1px solid rgba(255,215,0,0.25); text-shadow: 0 0 6px rgba(255,215,0,0.3); }
+.platform-显卡 { background: rgba(255,80,180,0.12); color: #ff50b4; border: 1px solid rgba(255,80,180,0.25); text-shadow: 0 0 6px rgba(255,80,180,0.3); }
+.platform-水冷 { background: rgba(100,200,255,0.12); color: #64c8ff; border: 1px solid rgba(100,200,255,0.25); text-shadow: 0 0 6px rgba(100,200,255,0.3); }
+
+/* ─── SOURCE BADGE ─── */
+.badge-source {
+  display: inline-block; padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 0.04em;
+  margin-left: 6px; vertical-align: 1px;
+  font-family: var(--font-display);
+  background: rgba(255,0,170,0.14); color: var(--magenta);
+  border: 1px solid rgba(255,0,170,0.32);
+  text-shadow: 0 0 6px rgba(255,0,170,0.35);
+}
+
+/* ─── RANKING SECTION HEADERS ─── */
+.rank-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+  font-size: 0.88rem; font-weight: 700; letter-spacing: 0.08em;
+}
+.rank-header::after {
+  content: '';
+  flex: 1; height: 1px;
+  background: linear-gradient(90deg, currentColor, transparent);
+  opacity: 0.25;
+}
+
+@media (max-width: 900px) {
+  .stats-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 640px) {
+  .app { padding: 20px 12px 60px; }
+  .header h1 { font-size: 1.1rem; }
+  .header-logos { gap: 10px; }
+  .logo-slot { width: 40px; height: 40px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .stat-card { padding: 12px 14px; }
+  .stat-card .value { font-size: 1.15rem; }
+  th, td { padding: 8px 8px; font-size: 0.72rem; }
+  .search-box { width: 130px; }
+  .modal { padding: 22px 18px; }
+}
+
+/* ─── FOCUS VISIBLE ─── */
+*:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+/* ─── REDUCED MOTION ─── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  body::after { opacity: 0.05; }
+}
+
+/* ─── CHAT PANEL ─── */
+.chat-toggle {
+  position: fixed; bottom: 28px; right: 28px; z-index: 900;
+  width: 54px; height: 54px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--magenta), var(--purple));
+  border: 1px solid rgba(224,64,251,0.3); cursor: pointer; color: #fff; font-size: 22px;
+  box-shadow: 0 0 20px rgba(224,64,251,0.3), 0 0 50px rgba(224,64,251,0.1);
+  transition: all .3s cubic-bezier(0.16,1,0.3,1);
+  display: flex; align-items: center; justify-content: center;
+  clip-path: polygon(10px 0%, 100% 0%, calc(100% - 10px) 100%, 0% 100%);
+  position: fixed;
+}
+.chat-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 30px rgba(224,64,251,0.5), 0 0 60px rgba(224,64,251,0.15);
+  border-color: rgba(224,64,251,0.6);
+}
+.chat-panel {
+  position: fixed; bottom: 92px; right: 28px; z-index: 899;
+  width: 400px; height: 520px; max-height: 70vh;
+  background: rgba(10,10,20,0.96); border: 1px solid rgba(0,229,255,0.2);
+  border-radius: 16px; backdrop-filter: blur(16px);
+  display: none; flex-direction: column; overflow: hidden;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 30px rgba(0,229,255,0.1);
+}
+.chat-panel.open { display: flex; }
+.chat-header {
+  padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.06);
+  font-size: 14px; font-weight: 600; color: var(--cyan);
+  text-shadow: 0 0 10px rgba(0,229,255,0.4);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.chat-header button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 18px; }
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px;
+}
+.chat-msg {
+  max-width: 85%; padding: 10px 14px; border-radius: 12px;
+  font-size: 13px; line-height: 1.5; word-break: break-word;
+}
+.chat-msg.user {
+  align-self: flex-end; background: rgba(0,229,255,0.12);
+  border: 1px solid rgba(0,229,255,0.2); color: var(--cyan);
+}
+.chat-msg.ai {
+  align-self: flex-start; background: rgba(224,64,251,0.1);
+  border: 1px solid rgba(224,64,251,0.15); color: #e0d0f0;
+}
+.chat-msg.ai details { margin-top: 6px; }
+.chat-msg.ai summary { cursor: pointer; color: var(--muted); font-size: 11px; }
+.chat-msg.ai details pre { font-size: 11px; color: var(--muted); margin: 4px 0 0; white-space: pre-wrap; }
+.chat-input-wrap {
+  padding: 10px 14px; border-top: 1px solid rgba(255,255,255,0.06);
+  display: flex; gap: 8px;
+}
+.chat-input-wrap input {
+  flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px; padding: 8px 12px; color: #fff; font-size: 13px; outline: none;
+}
+.chat-input-wrap input:focus { border-color: var(--cyan); }
+.chat-send-btn {
+  width: 38px; height: 38px; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--cyan), var(--purple));
+  border: 1px solid rgba(0,229,255,0.3); border-radius: 6px;
+  color: #fff; font-size: 18px; font-weight: 700;
+  cursor: pointer; transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
+  display: flex; align-items: center; justify-content: center;
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+}
+.chat-send-btn:hover {
+  box-shadow: 0 0 16px rgba(0,229,255,0.3), 0 0 40px rgba(0,229,255,0.1);
+  border-color: rgba(0,229,255,0.6); transform: translateY(-1px);
+}
+.chat-send-btn:active { transform: translateY(0) scale(0.95); }
+.chat-send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* ─── SMART ENTRY ─── */
+.smart-entry {
+  margin: 0 0 12px; background: rgba(224,64,251,0.04);
+  border: 1px solid rgba(224,64,251,0.15); border-radius: 12px;
+  padding: 12px 16px; display: none;
+}
+.smart-entry.open { display: block; }
+.smart-entry label { font-size: 12px; color: var(--magenta); margin-bottom: 6px; display: block; text-shadow: 0 0 8px rgba(224,64,251,0.3); }
+.smart-entry textarea {
+  width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+  padding: 10px; color: #fff; font-size: 13px; resize: vertical;
+  min-height: 60px; outline: none; font-family: inherit;
+}
+.smart-entry textarea:focus { border-color: var(--magenta); }
+.smart-entry .smart-actions { margin-top: 8px; display: flex; gap: 8px; align-items: center; }
+.smart-entry .smart-hint { font-size: 11px; color: var(--muted); }
+
+/* ─── IMAGE THUMBNAILS ─── */
+.img-thumb {
+  width: 36px; height: 36px; border-radius: 6px; object-fit: cover;
+  cursor: pointer; border: 1px solid rgba(255,255,255,0.1);
+  transition: transform .15s, box-shadow .15s;
+}
+.img-thumb:hover { transform: scale(1.15); box-shadow: 0 0 12px rgba(0,229,255,0.3); }
+.img-cell { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.img-count-badge {
+  font-size: 10px; background: rgba(0,229,255,0.15); color: var(--cyan);
+  padding: 2px 6px; border-radius: 10px; border: 1px solid rgba(0,229,255,0.2);
+}
+.group-badge {
+  font-size: 10px; background: rgba(224,64,251,0.12); color: var(--magenta);
+  padding: 2px 7px; border-radius: 10px; border: 1px solid rgba(224,64,251,0.2);
+  margin-left: 6px;
+}
+
+/* ─── IMAGE VIEWER MODAL ─── */
+.img-viewer-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+  display: none; align-items: center; justify-content: center;
+  cursor: zoom-out;
+}
+.img-viewer-overlay.open { display: flex; }
+.img-viewer-overlay img {
+  max-width: 90vw; max-height: 90vh; border-radius: 8px;
+  box-shadow: 0 0 60px rgba(0,229,255,0.15);
+}
+.img-viewer-nav {
+  position: absolute; bottom: 20px; display: flex; gap: 12px; align-items: center;
+}
+.img-viewer-nav button {
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+  color: #fff; border-radius: 50%; width: 36px; height: 36px;
+  cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center;
+}
+.img-viewer-nav span { color: var(--muted); font-size: 13px; }
+
+/* ─── IMAGE UPLOAD IN MODAL ─── */
+.img-upload-area {
+  margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  background: rgba(0,229,255,0.03); border: 1px dashed rgba(0,229,255,0.2);
+  border-radius: 6px; padding: 12px 16px; cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
+}
+.img-upload-area:hover {
+  border-color: rgba(0,229,255,0.4); background: rgba(0,229,255,0.06);
+  box-shadow: 0 0 16px rgba(0,229,255,0.1);
+}
+.img-upload-btn {
+  background: rgba(255,255,255,0.05); border: 1px dashed rgba(255,255,255,0.15);
+  border-radius: 8px; padding: 6px 14px; color: var(--muted);
+  cursor: pointer; font-size: 12px; transition: border-color .2s, color .2s;
+}
+.img-upload-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+.img-preview-thumb {
+  width: 48px; height: 48px; border-radius: 6px; object-fit: cover;
+  border: 1px solid rgba(255,255,255,0.1); position: relative;
+}
+.img-preview-wrap { position: relative; display: inline-block; }
+.img-preview-wrap .img-remove {
+  position: absolute; top: -6px; right: -6px; width: 18px; height: 18px;
+  background: var(--red); border: none; border-radius: 50%;
+  color: #fff; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+}
+</style>
+</head>
+<body>
+<canvas id="particles"></canvas>
+<div class="bg-grid"></div>
+<div class="bg-orbs"></div>
+<div class="bg-orb3"></div>
+<div class="bg-orb4"></div>
+<div class="bg-wire w1"></div>
+<div class="bg-wire w2"></div>
+<div class="bg-wire w3"></div>
+<div class="bg-stream">
+  <span></span><span></span><span></span><span></span><span></span>
+</div>
+
+<div class="app">
+  <header class="header">
+    <div class="header-logos">
+      <div class="logo-slot left" id="logoLeft" title="MSI 龙盾 Logo" onclick="uploadLogo('left')">
+        <img src="R.png" alt="MSI Dragon" onerror="this.style.display='none';this.parentElement.querySelector('.logo-placeholder').style.display='block'">
+        <span class="logo-placeholder" style="display:none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+      </div>
+      <div class="header-text">
+        <h1>NO_object丰收</h1>
+        <div class="sub">HARDWARE LEDGER</div>
+      </div>
+      <div class="logo-slot right" id="logoRight" title="MSI 薯条 Logo" onclick="uploadLogo('right')">
+        <img src="MSI-Logo-2020-present.png" alt="MSI" onerror="this.style.display='none';this.parentElement.querySelector('.logo-placeholder').style.display='block'">
+        <span class="logo-placeholder" style="display:none">MSI</span>
+      </div>
+      <input type="file" id="logoInput" accept="image/*" style="display:none" onchange="handleLogoUpload(event)">
+    </div>
+  </header>
+
+  <div class="stats-grid" id="statsGrid"></div>
+
+  <hr class="divider">
+
+  <div class="toolbar">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div class="tab-group" id="tabs">
+        <button class="tab active" data-view="brands">品牌总览</button>
+        <button class="tab" data-view="models">型号明细</button>
+        <button class="tab" data-view="chipsets">芯片组</button>
+        <button class="tab" data-view="ranking"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> 排行榜</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="filter-chip" id="pendingChip" onclick="togglePending()" hidden>
+        待补售价 <b id="pendingCount">0</b>
+      </button>
+      <input class="search-box" id="search" placeholder="搜索型号 / 品牌..." autocomplete="off">
+      <button class="btn primary" onclick="openAddModal()">+ 新增</button>
+      <button class="btn" onclick="importCSV()">导入CSV</button>
+      <button class="btn" id="ocrBtn" onclick="ocrFromScreenshot()">OCR识别</button>
+      <button class="btn accent" onclick="toggleSmartEntry()">AI 录入</button>
+      <input type="file" id="csvFileInput" accept=".csv" style="display:none" onchange="handleCSVUpload(event)">
+      <input type="file" id="ocrFileInput" accept="image/*" style="display:none" onchange="handleOCRUpload(event)">
+    </div>
+  </div>
+
+  <!-- SMART ENTRY PANEL -->
+  <div class="smart-entry" id="smartEntry">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="color:var(--magenta);font-weight:600;font-size:13px">AI 智能录入</span>
+      <span style="color:var(--text-dim);font-size:11px">输入自然语言，自动解析填充表单</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <textarea id="smartInput" rows="2" placeholder="例如：微星B650m爆破弹 成本300 卖650 带光威神策内存1150" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-size:13px;resize:none;font-family:inherit"></textarea>
+      <button class="btn accent" onclick="smartParse()">解析填充</button>
+    </div>
+    <div id="smartResult" style="display:none;margin-top:8px;padding:8px;border-radius:6px;background:rgba(224,64,251,0.08);border:1px solid rgba(224,64,251,0.2);font-size:12px;color:var(--text-dim)"></div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead id="tableHead"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="footer" id="footer"></div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2 id="modalTitle">新增记录</h2>
+    <div class="field" id="templateField">
+      <label>模板录入</label>
+      <select id="fTemplate">
+        <option value="">-- 手动输入 --</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>品牌</label>
+      <input id="fBrand" placeholder="微星 / 华硕 / 技嘉...">
+    </div>
+    <div class="field">
+      <label>型号</label>
+      <input id="fModel" placeholder="B650m gaming wifi...">
+    </div>
+    <div class="field" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <label>成本 ¥</label>
+        <input id="fCost" type="number" step="0.01" placeholder="0">
+      </div>
+      <div>
+        <label>售价 ¥</label>
+        <input id="fSell" type="number" step="0.01" placeholder="0">
+        <div id="priceHint" style="display:none"></div>
+      </div>
+    </div>
+    <div class="field">
+      <label>SN 码</label>
+      <input id="fSN" placeholder="序列号（可选）">
+    </div>
+    <div class="field">
+      <label>额外价格 ¥</label>
+      <input id="fExtra" type="number" step="0.01" placeholder="0">
+    </div>
+    <div class="field">
+      <label>配件</label>
+      <input id="fAccessory" placeholder="如：光威神策内存">
+    </div>
+    <div class="field" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <label>配件价格 ¥</label>
+        <input id="fAccPrice" type="number" step="0.01" placeholder="0">
+      </div>
+      <div>
+        <label>SN 码</label>
+        <input id="fSN2" placeholder="配件序列号">
+      </div>
+    </div>
+    <div class="field">
+      <label>产品图片</label>
+      <div class="img-upload-area" id="imgUploadArea" onclick="document.getElementById('imgFileInput').click()">
+        <input type="file" id="imgFileInput" accept="image/*" multiple style="display:none" onchange="handleImageSelect(event)">
+        <span style="font-size:13px;color:var(--text-dim)">点击上传图片（可多选）</span>
+      </div>
+      <div id="imgPreviewList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
+    </div>
+    <div class="btns">
+      <button class="btn danger" onclick="closeModal()">取消</button>
+      <button class="btn primary" id="modalSubmit">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHAT PANEL -->
+<button class="chat-toggle" id="chatToggle" onclick="toggleChat()">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+</button>
+<div class="chat-panel" id="chatPanel">
+  <div class="chat-header" onclick="toggleChat()">
+    <span>AI 助手</span>
+    <span style="font-size:11px;opacity:0.6">qwen3.8:27b</span>
+  </div>
+  <div class="chat-messages" id="chatMessages">
+    <div class="chat-msg ai">你好！我是你的 AI 助手，可以帮你查询数据、计算利润、添加记录。试试问我："总利润多少？" 或 "微星B650m有多少块？"</div>
+  </div>
+  <div class="chat-input-wrap">
+    <input id="chatInput" placeholder="输入问题..." onkeydown="if(event.key==='Enter')sendChat()">
+    <button class="chat-send-btn" onclick="sendChat()">↑</button>
+  </div>
+</div>
+
+<!-- IMAGE VIEWER -->
+<div class="img-viewer-overlay" id="imgViewer" onclick="closeImageViewer(event)">
+  <button onclick="imgViewerNav(-1)" style="position:absolute;left:20px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.5);border:none;color:#fff;font-size:32px;padding:8px 16px;border-radius:8px;cursor:pointer;z-index:1001">‹</button>
+  <img id="imgViewerImg" src="" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain">
+  <button onclick="imgViewerNav(1)" style="position:absolute;right:20px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.5);border:none;color:#fff;font-size:32px;padding:8px 16px;border-radius:8px;cursor:pointer;z-index:1001">›</button>
+  <div id="imgViewerCounter" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);color:#fff;padding:4px 12px;border-radius:12px;font-size:13px"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── DATA ──────────────────────────────
+const INITIAL = [];
+let items = [];
+
+function safeFloat(v) {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+  return 0;
+}
+
+// ─── CHIPSET / PLATFORM DETECTION ────────
+function detectPlatform(model) {
+  const m = model.toUpperCase();
+  // GPU
+  if (/RTX|GTX|RX\d{3,4}|ARC\s*A\d/i.test(m)) return '显卡';
+  // RAM (容量 + G*2 或 结尾为G)
+  if (/\d+G\*[12]/i.test(m) || /\d+G$/i.test(m) || /G\*2/i.test(m)) return '内存';
+  // Storage (容量 + t/g/T/G)
+  if (/\d+[TG]B?$/i.test(m) || /\d+[TG]\b/i.test(m)) return '硬盘';
+  // Motherboard
+  if (/B650|B850|X670|X870|A620/.test(m)) return 'AM5';
+  if (/B550|B450|X570|X470|A520|A320/.test(m)) return 'AM4';
+  if (/B860|Z890|H810/.test(m)) return 'LGA1851';
+  if (/X99/.test(m)) return 'LGA2011';
+  if (/X79/.test(m)) return 'LGA2011';
+  if (/H610|B660|B760|Z690|Z790|H710|H770/.test(m)) return 'LGA1700';
+  if (/Z590|Z490|B560|H510|B460|H410/.test(m)) return 'LGA1200';
+  if (/liquid/i.test(m)) return '水冷';
+  if (/^\d/.test(m)) return 'CPU';
+  return '';
+}
+function detectChipset(model) {
+  const m = model.toUpperCase();
+  // GPU: extract RTX/GTX model
+  const gpuMatch = m.match(/(RTX\s*\d{3,4}|GTX\s*\d{3,4})/i);
+  if (gpuMatch) return gpuMatch[1].replace(/\s+/,'');
+  // RAM: extract die brand from the descriptive model
+  const ramDie = m.match(/(镁光|长鑫|海力士|三星|现代)/);
+  if (ramDie) return ramDie[1];
+  // Storage: extract model family
+  const ssdMatch = m.match(/^([a-zA-Z]+\d+)/);
+  if (ssdMatch) return ssdMatch[1].toLowerCase();
+  // Motherboard chipset
+  const mbMatch = m.match(/([BHQZX]\d{2,3}|A\d{3})/);
+  return mbMatch ? mbMatch[1] : '';
+}
+
+function parseItems(raw) {
+  raw.forEach((r, i) => { r._oi = i; });
+  return raw.filter(r => {
+    const b = (r.brand || '').trim();
+    const m = (r.model || '').trim();
+    const c = safeFloat(r.cost);
+    if (!b && !m) return false;
+    if (!b && !m && c > 50000) return false;
+    if (b === 'Ʒ��' || b === 'Ʒ��') return false;
+    return true;
+  }).map((r, idx) => ({
+    id: r._oi != null ? r._oi : idx,
+    source_order_id: r.source_order_id || '',
+    brand: (r.brand || '').trim(),
+    model: (r.model || '').trim(),
+    cost: safeFloat(r.cost),
+    sell: safeFloat(r.sell),
+    sn: r.sn || '',
+    extra_price: safeFloat(r.extra_price) || 0,
+    profit: safeFloat(r.sell) - safeFloat(r.cost),
+    get platform() { return detectPlatform(this.model); },
+    get chipset() { return detectChipset(this.model); },
+    get margin() { return this.cost > 0 ? (this.profit / this.cost * 100) : 0; }
+  }));
+}
+
+items = parseItems(INITIAL);
+
+// ─── API ──────────────────────────────
+const API = '/api/data';
+
+let lastPayload = null;
+
+// 返回新增记录条数；数据没变时返回 null，避免无谓重绘
+async function loadPayload() {
+  const res = await fetch(API);
+  const text = await res.text();
+  if (text === lastPayload) return null;
+  const parsed = parseItems(JSON.parse(text));
+  const gained = parsed.length - items.length;
+  lastPayload = text;
+  items = parsed;
+  return gained;
+}
+
+async function fetchItems() {
+  try {
+    await loadPayload();
+    render();
+  } catch(e) { console.warn('API offline'); }
+}
+
+// ─── TOAST ────────────────────────────
+let toastTimer = null;
+function showToast(msg, kind) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + (kind || 'ok');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ''; }, 4200);
+}
+
+// ─── LIVE SYNC ────────────────────────
+let dirtyWhileEditing = false;
+
+async function syncFromDisk() {
+  if (document.getElementById('modal').classList.contains('active')) {
+    dirtyWhileEditing = true;
+    return;
+  }
+  try {
+    const gained = await loadPayload();
+    if (gained === null) return;
+    render();
+    if (gained > 0) showToast(`已同步 ${gained} 条新记录 · 账本现有 ${items.length} 条`);
+  } catch (e) { console.warn('sync failed'); }
+}
+
+window.addEventListener('focus', syncFromDisk);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syncFromDisk(); });
+
+let editId = -1;
+
+async function saveItem(record) {
+  if (editId >= 0) {
+    await fetch(API + '/' + editId, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(record) });
+  } else {
+    await fetch(API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(record) });
+  }
+  await fetchItems();
+  window._tplCache = null; // invalidate template cache
+}
+
+async function deleteItem(idx) {
+  await fetch(API + '/' + idx, { method: 'DELETE' });
+  await fetchItems();
+  window._tplCache = null;
+}
+
+// ─── STATS ──────────────────────────────
+function fmt(n) { return n.toLocaleString('zh-CN', { minimumFractionDigits:0, maximumFractionDigits:0 }); }
+
+function updateStats() {
+  const totalCost = items.reduce((s,i) => s + i.cost, 0);
+  const totalSell = items.reduce((s,i) => s + i.sell, 0);
+  const totalProfit = totalSell - totalCost;
+  const totalMargin = totalCost > 0 ? (totalProfit / totalCost * 100) : 0;
+
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-card"><div class="corner"></div><div class="label">总利润</div><div class="value green">¥${fmt(totalProfit)}</div></div>
+    <div class="stat-card"><div class="corner"></div><div class="label">总成本</div><div class="value red">¥${fmt(totalCost)}</div></div>
+    <div class="stat-card"><div class="corner"></div><div class="label">总售价</div><div class="value gold">¥${fmt(totalSell)}</div></div>
+    <div class="stat-card"><div class="corner"></div><div class="label">总交易</div><div class="value cyan">${items.length} 笔</div></div>
+    <div class="stat-card"><div class="corner"></div><div class="label">利润率</div><div class="value magenta">${totalMargin.toFixed(1)}%</div></div>
+  `;
+  document.getElementById('footer').textContent = `NEON LEDGER · 利润 ¥${fmt(totalProfit)} · ${items.length} 条记录`;
+
+  const pending = items.reduce((n, i) => n + (i.sell > 0 ? 0 : 1), 0);
+  const chip = document.getElementById('pendingChip');
+  chip.hidden = pending === 0;
+  chip.classList.toggle('on', pendingOnly);
+  document.getElementById('pendingCount').textContent = pending;
+}
+
+// ─── BRAND AGGREGATION ──────────────────
+function buildBrands() {
+  const map = {};
+  items.forEach(i => {
+    if (!map[i.brand]) map[i.brand] = { brand: i.brand, count: 0, cost: 0, sell: 0, models: {} };
+    map[i.brand].count++;
+    map[i.brand].cost += i.cost;
+    map[i.brand].sell += i.sell;
+    if (!map[i.brand].models[i.model]) map[i.brand].models[i.model] = { model: i.model, count:0, cost:0, sell:0 };
+    map[i.brand].models[i.model].count++;
+    map[i.brand].models[i.model].cost += i.cost;
+    map[i.brand].models[i.model].sell += i.sell;
+  });
+  return Object.values(map).map(b => ({
+    ...b, profit: b.sell - b.cost,
+    margin: b.cost > 0 ? ((b.sell - b.cost) / b.cost * 100) : 0,
+  })).sort((a,b) => b.profit - a.profit);
+}
+
+const barColors = ['cyan', 'magenta', 'purple', 'green', 'gold'];
+let currentView = 'brands';
+let searchTerm = '';
+let sortKey = null;
+let sortDir = 'asc';
+let pendingOnly = false;
+
+function sortArrow(key) {
+  if (sortKey !== key) return ' <span class="sort-arrow">▴▾</span>';
+  return sortDir === 'asc'
+    ? ' <span class="sort-arrow">▴</span>'
+    : ' <span class="sort-arrow">▾</span>';
+}
+
+function sortByKey(arr, key) {
+  return [...arr].sort((a, b) => {
+    const va = typeof a[key] === 'function' ? a[key] : (a[key] ?? 0);
+    const vb = typeof b[key] === 'function' ? b[key] : (b[key] ?? 0);
+    if (typeof va === 'string') return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+    return sortDir === 'asc' ? va - vb : vb - va;
+  });
+}
+
+function togglePending() {
+  pendingOnly = !pendingOnly;
+  if (pendingOnly && currentView !== 'models') {
+    currentView = 'models';
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === 'models'));
+  }
+  render();
+}
+
+// ─── BRAND ICONS ──────────────────────────
+const BRAND_STYLES = {
+  '微星': { bg: '#c8a000', fg: '#000000', ring: '#ffd740', ch: '微' },
+  '华硕': { bg: '#00539b', fg: '#ffffff', ring: '#0088ff', ch: '硕' },
+  '技嘉': { bg: 'split', fg: '#ffffff', ring: '#ff4040', ring2: '#0066cc', ch: '嘉' },
+  '七彩虹': { bg: '#cc0000', fg: '#ffffff', ring: '#ff3333', ch: '虹' },
+  '铭瑄': { bg: '#00c853', fg: '#ffffff', ring: '#69f0ae', ch: '铭' },
+  'amd': { bg: '#ff6d00', fg: '#ffffff', ring: '#ff9100', ch: 'A' },
+  'inter': { bg: '#0071c5', fg: '#ffffff', ring: '#00a0ff', ch: 'I' },
+};
+function brandIcon(brand) {
+  const s = BRAND_STYLES[brand.toLowerCase()] || BRAND_STYLES[brand] || { bg: '#444', fg: '#fff', ring: '#666', ch: brand[0] || '?' };
+  var grad, stroke;
+  if (s.bg === 'split') {
+    grad = `<linearGradient id="bg-${s.ch}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${s.ring}"/><stop offset="100%" stop-color="${s.ring2}"/></linearGradient>`;
+    stroke = s.ring;
+  } else {
+    grad = `<linearGradient id="bg-${s.ch}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${s.ring}"/><stop offset="100%" stop-color="${s.bg}"/></linearGradient>`;
+    stroke = s.ring;
+  }
+  return `<svg width="28" height="28" viewBox="0 0 20 20" style="vertical-align:-7px;margin-right:7px;flex-shrink:0;filter:drop-shadow(0 0 3px ${stroke}88)"><defs>${grad}</defs><rect x="1" y="1" width="18" height="18" rx="3" fill="url(#bg-${s.ch})" stroke="${stroke}" stroke-width="0.6" opacity="0.93"/><text x="10" y="14.5" text-anchor="middle" fill="${s.fg}" font-size="11" font-weight="900" font-family="'Microsoft YaHei','PingFang SC',sans-serif">${s.ch}</text></svg>`;
+}
+
+function renderBrands() {
+  const brands = buildBrands();
+  const filtered = brands.filter(b => {
+    if (!searchTerm) return true;
+    const q = searchTerm.toLowerCase();
+    return b.brand.toLowerCase().includes(q) || Object.keys(b.models).some(m => m.toLowerCase().includes(q));
+  });
+
+  const sorted = sortKey ? sortByKey(filtered, sortKey) : filtered;
+  const maxProfit = Math.max(...sorted.map(b => b.profit), 1);
+
+  const mkTh = (key, label) => `<th data-sort="${key}"${sortKey === key ? ' class="sorted"' : ''}>${label}${sortArrow(key)}</th>`;
+
+  document.getElementById('tableHead').innerHTML = `
+    <tr>${mkTh('brand','品牌')}${mkTh('count','数量')}${mkTh('cost','成本')}${mkTh('sell','售价')}${mkTh('profit','利润')}${mkTh('margin','利润率')}<th class="bar-cell">占比</th></tr>`;
+
+  document.getElementById('tableBody').innerHTML = sorted.map((b, idx) => {
+    const barW = Math.max((b.profit / maxProfit * 100), 1);
+    const pClass = b.profit >= 0 ? 'profit-positive' : 'profit-negative';
+    return `
+    <tr class="clickable" onclick="toggleBrand('${esc(b.brand)}', this)">
+      <td><span class="expand-arrow">▶</span> ${brandIcon(b.brand)}<strong>${esc(b.brand)}</strong></td>
+      <td>${b.count}</td><td>¥${fmt(b.cost)}</td><td>¥${fmt(b.sell)}</td>
+      <td class="${pClass}">¥${fmt(b.profit)}</td>
+      <td><span class="badge ${b.profit >= 0 ? 'badge-profit' : 'badge-loss'}">${b.margin.toFixed(1)}%</span></td>
+      <td class="bar-cell"><div class="bar-wrap"><div class="bar ${barColors[idx % barColors.length]}" style="width:${barW}%"></div><span style="font-size:0.66rem;color:var(--muted);white-space:nowrap">${barW.toFixed(0)}%</span></div></td>
+    </tr>
+    <tr class="model-detail" id="detail-${esc(b.brand)}">
+      <td colspan="7">
+        <table class="model-table">
+          <thead><tr><th>型号</th><th>数量</th><th>成本</th><th>售价</th><th>利润</th><th>利润率</th></tr></thead>
+          <tbody>${Object.values(b.models).sort((a,b) => (b.sell-b.cost)-(a.sell-a.cost)).map(m => {
+            const mp = m.sell - m.cost;
+            const mm = m.cost > 0 ? (mp/m.cost*100) : 0;
+            return `<tr><td>${esc(m.model)}</td><td>${m.count}</td><td>¥${fmt(m.cost)}</td><td>¥${fmt(m.sell)}</td><td class="${mp>=0?'profit-positive':'profit-negative'}">¥${fmt(mp)}</td><td><span class="badge ${mp>=0?'badge-profit':'badge-loss'}">${mm.toFixed(1)}%</span></td></tr>`;
+          }).join('')}</tbody>
+        </table>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderModels() {
+  const all = items.map((i, idx) => ({ ...i, origIdx: i.id }));
+  const visible = pendingOnly ? all.filter(i => !i.sell) : all;
+  const filtered = searchTerm
+    ? visible.filter(i => i.brand.toLowerCase().includes(searchTerm.toLowerCase()) || i.model.toLowerCase().includes(searchTerm.toLowerCase()))
+    : visible;
+
+  const sorted = sortKey ? sortByKey(filtered, sortKey) : [...filtered].sort((a,b) => b.profit - a.profit);
+
+  const mkTh = (key, label) => `<th data-sort="${key}"${sortKey === key ? ' class="sorted"' : ''}>${label}${sortArrow(key)}</th>`;
+
+  document.getElementById('tableHead').innerHTML = `
+    <tr>${mkTh('brand','品牌')}${mkTh('model','型号')}${mkTh('cost','成本')}${mkTh('sell','售价')}${mkTh('profit','利润')}${mkTh('margin','利润率')}<th>图片</th><th>操作</th></tr>`;
+
+  document.getElementById('tableBody').innerHTML = sorted
+    .map(i => {
+      const pClass = i.profit >= 0 ? 'profit-positive' : 'profit-negative';
+      const imgs = Array.isArray(i.images) ? i.images : (i.images ? [i.images] : []);
+      let imgCell;
+      if (imgs.length > 0) {
+        const src = imgs[0].startsWith('http') ? imgs[0] : '/api/images/' + imgs[0];
+        imgCell = `<div style="position:relative;display:inline-block;cursor:pointer" onclick="event.stopPropagation();openImageViewer(${JSON.stringify(imgs).replace(/"/g, '&quot;')},0)">
+          <img src="${src}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;border:1px solid var(--border)">
+          ${imgs.length > 1 ? `<span style="position:absolute;bottom:-4px;right:-4px;background:var(--magenta);color:#fff;font-size:10px;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:8px;padding:0 4px">+${imgs.length - 1}</span>` : ''}
+        </div>`;
+      } else {
+        imgCell = '<span style="color:var(--muted)">—</span>';
+      }
+      return `
+    <tr>
+      <td>${brandIcon(i.brand)}${esc(i.brand)}</td><td>${esc(i.model)}${platformBadge(i.platform)}${i.source_order_id ? '<span class="badge-source" title="订单号 ' + esc(i.source_order_id) + '">闲鱼</span>' : ''}</td>
+      <td>¥${fmt(i.cost)}</td><td>¥${fmt(i.sell)}</td>
+      <td class="${pClass}">¥${fmt(i.profit)}</td>
+      <td><span class="badge ${i.profit >= 0 ? 'badge-profit' : 'badge-loss'}">${i.margin.toFixed(1)}%</span></td>
+      <td>${imgCell}</td>
+      <td>
+        <div class="actions">
+          <button class="icon-btn" title="编辑" onclick="event.stopPropagation(); openEditModal(${i.origIdx})" aria-label="编辑"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+          <button class="icon-btn danger" title="删除" onclick="event.stopPropagation(); confirmDelete(${i.origIdx}, '${esc(i.brand)} ${esc(i.model)}')" aria-label="删除"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
+        </div>
+      </td>
+    </tr>`;
+    }).join('');
+}
+
+function renderRanking() {
+  const all = items.map((i, idx) => ({ ...i, origIdx: i.id }));
+  const filtered = searchTerm
+    ? all.filter(i => i.brand.toLowerCase().includes(searchTerm.toLowerCase()) || i.model.toLowerCase().includes(searchTerm.toLowerCase()))
+    : all;
+
+  const byProfit = [...filtered].sort((a,b) => b.profit - a.profit).slice(0, 15);
+  const byMargin = [...filtered].filter(i => i.cost >= 50).sort((a,b) => b.margin - a.margin).slice(0, 15);
+
+  const rankBadge = (n) => {
+    if (n === 1) return '<span style="color:#FFD740;font-weight:700;font-size:1.05rem;text-shadow:0 0 10px rgba(255,215,64,0.4)">#1</span>';
+    if (n === 2) return '<span style="color:#B0B8C8;font-weight:600;font-size:1rem">#2</span>';
+    if (n === 3) return '<span style="color:#C89060;font-weight:600;font-size:0.95rem">#3</span>';
+    return `<span style="color:var(--muted)">#${n}</span>`;
+  };
+
+  document.getElementById('tableHead').innerHTML = '';
+  document.getElementById('tableBody').innerHTML = `
+    <tr><td colspan="7" style="padding:26px 22px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+        <div>
+          <div class="rank-header" style="color:var(--green)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg> 利润 TOP 15</div>
+          <table class="model-table" style="width:100%">
+            <thead><tr><th></th><th>型号</th><th>利润</th><th>利润率</th></tr></thead>
+            <tbody>${byProfit.map((i, n) => `
+              <tr>
+                <td style="width:32px">${rankBadge(n+1)}</td>
+                <td>${brandIcon(i.brand)}${esc(i.brand)} <span style="color:var(--muted)">${esc(i.model)}</span>${platformBadge(i.platform)}</td>
+                <td class="profit-positive">¥${fmt(i.profit)}</td>
+                <td><span class="badge badge-profit">${i.margin.toFixed(1)}%</span></td>
+              </tr>`).join('')}</tbody>
+          </table>
+        </div>
+        <div>
+          <div class="rank-header" style="color:var(--magenta)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> 利润率 TOP 15</div>
+          <table class="model-table" style="width:100%">
+            <thead><tr><th></th><th>型号</th><th>利润率</th><th>利润</th></tr></thead>
+            <tbody>${byMargin.map((i, n) => `
+              <tr>
+                <td style="width:32px">${rankBadge(n+1)}</td>
+                <td>${brandIcon(i.brand)}${esc(i.brand)} <span style="color:var(--muted)">${esc(i.model)}</span>${platformBadge(i.platform)}</td>
+                <td><span class="badge badge-profit">${i.margin.toFixed(1)}%</span></td>
+                <td class="profit-positive">¥${fmt(i.profit)}</td>
+              </tr>`).join('')}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="rank-header" style="color:var(--cyan)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> 畅销榜（按出货数量排名）</div>
+      <table class="model-table" style="width:100%">
+        <thead><tr><th></th><th>品牌</th><th>型号</th><th>出货数</th><th>总利润</th><th>均价</th></tr></thead>
+        <tbody>${(() => {
+          const m = {};
+          filtered.forEach(i => {
+            const k = i.brand + '|||' + i.model;
+            if (!m[k]) m[k] = { brand: i.brand, model: i.model, count: 0, profit: 0, sellTotal: 0 };
+            m[k].count++;
+            m[k].profit += i.profit;
+            m[k].sellTotal += i.sell;
+          });
+          return Object.values(m).sort((a,b) => b.count - a.count).slice(0, 15).map((x, n) => `
+            <tr>
+              <td style="width:32px">${rankBadge(n+1)}</td>
+              <td>${brandIcon(x.brand)}${esc(x.brand)}</td>
+              <td>${esc(x.model)}</td>
+              <td style="color:var(--cyan);font-weight:700">${x.count} 件</td>
+              <td class="profit-positive">¥${fmt(x.profit)}</td>
+              <td>¥${fmt(x.sellTotal / x.count)}</td>
+            </tr>`).join('');
+        })()}</tbody>
+      </table>
+
+      <hr class="divider">
+
+      <div class="rank-header" style="color:var(--gold)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> 型号单价榜（按售价排名）</div>
+      <table class="model-table" style="width:100%">
+        <thead><tr><th></th><th>品牌</th><th>型号</th><th>成本</th><th>售价</th><th>利润</th><th>利润率</th></tr></thead>
+        <tbody>${[...filtered].sort((a,b) => b.sell - a.sell).slice(0, 20).map((i, n) => `
+          <tr>
+            <td style="width:32px">${rankBadge(n+1)}</td>
+            <td>${brandIcon(i.brand)}${esc(i.brand)}</td>
+            <td>${esc(i.model)}${platformBadge(i.platform)}</td>
+            <td>¥${fmt(i.cost)}</td>
+            <td style="color:var(--gold)">¥${fmt(i.sell)}</td>
+            <td class="profit-positive">¥${fmt(i.profit)}</td>
+            <td><span class="badge badge-profit">${i.margin.toFixed(1)}%</span></td>
+          </tr>`).join('')}</tbody>
+      </table>
+    </td></tr>`;
+}
+
+function platformBadge(p) {
+  if (!p) return '';
+  const cls = `platform-${p}`;
+  return `<span class="platform-badge ${cls}">${p}</span>`;
+}
+
+function renderChipsets() {
+  const map = {};
+  items.forEach(i => {
+    const chip = i.chipset || '其他';
+    if (!map[chip]) map[chip] = { chipset: chip, count: 0, cost: 0, sell: 0, platforms: {}, models: {} };
+    map[chip].count++;
+    map[chip].cost += i.cost;
+    map[chip].sell += i.sell;
+    const pf = i.platform || '未知';
+    if (!map[chip].platforms[pf]) map[chip].platforms[pf] = { platform: pf, count: 0, cost: 0, sell: 0 };
+    map[chip].platforms[pf].count++;
+    map[chip].platforms[pf].cost += i.cost;
+    map[chip].platforms[pf].sell += i.sell;
+    if (!map[chip].models[i.model]) map[chip].models[i.model] = { model: i.model, count: 0, cost: 0, sell: 0, platform: i.platform };
+    map[chip].models[i.model].count++;
+    map[chip].models[i.model].cost += i.cost;
+    map[chip].models[i.model].sell += i.sell;
+  });
+  const chips = Object.values(map).map(c => ({
+    ...c, profit: c.sell - c.cost,
+    margin: c.cost > 0 ? ((c.sell-c.cost)/c.cost*100) : 0,
+  }));
+
+  const sorted = sortKey ? sortByKey(chips, sortKey) : [...chips].sort((a,b) => b.count - a.count);
+
+  const mkTh = (key, label) => `<th data-sort="${key}"${sortKey === key ? ' class="sorted"' : ''}>${label}${sortArrow(key)}</th>`;
+
+  document.getElementById('tableHead').innerHTML = `<tr>${mkTh('chipset','芯片组')}<th>平台</th>${mkTh('count','数量')}${mkTh('cost','成本')}${mkTh('sell','售价')}${mkTh('profit','利润')}${mkTh('margin','利润率')}</tr>`;
+  document.getElementById('tableBody').innerHTML = sorted.map(c => {
+    const pStr = Object.values(c.platforms).map(p => platformBadge(p.platform)).join('');
+    const pClass = c.profit >= 0 ? 'profit-positive' : 'profit-negative';
+    return `
+    <tr class="clickable" onclick="toggleBrand('chip-${c.chipset}', this)">
+      <td><span class="expand-arrow">▶</span> <strong>${esc(c.chipset)}</strong></td>
+      <td>${pStr}</td>
+      <td>${c.count}</td><td>¥${fmt(c.cost)}</td><td>¥${fmt(c.sell)}</td>
+      <td class="${pClass}">¥${fmt(c.profit)}</td>
+      <td><span class="badge ${c.profit>=0?'badge-profit':'badge-loss'}">${c.margin.toFixed(1)}%</span></td>
+    </tr>
+    <tr class="model-detail" id="detail-chip-${c.chipset}">
+      <td colspan="7">
+        <table class="model-table">
+          <thead><tr><th>型号</th><th>平台</th><th>数量</th><th>成本</th><th>售价</th><th>利润</th><th>利润率</th></tr></thead>
+          <tbody>${Object.values(c.models).sort((a,b)=>b.count-a.count).map(m => {
+            const mp = m.sell - m.cost;
+            const mm = m.cost > 0 ? (mp/m.cost*100) : 0;
+            return `<tr><td>${esc(m.model)}</td><td>${platformBadge(m.platform)}</td><td>${m.count}</td><td>¥${fmt(m.cost)}</td><td>¥${fmt(m.sell)}</td><td class="${mp>=0?'profit-positive':'profit-negative'}">¥${fmt(mp)}</td><td><span class="badge ${mp>=0?'badge-profit':'badge-loss'}">${mm.toFixed(1)}%</span></td></tr>`;
+          }).join('')}</tbody>
+        </table>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function render() {
+  updateStats();
+  if (currentView === 'brands') renderBrands();
+  else if (currentView === 'models') renderModels();
+  else if (currentView === 'chipsets') renderChipsets();
+  else if (currentView === 'ranking') renderRanking();
+}
+
+// ─── INTERACTIONS ────────────────────────
+function toggleBrand(brand, row) {
+  const el = document.getElementById('detail-' + brand);
+  if (!el) return;
+  el.classList.toggle('active');
+  if (row) {
+    const arrow = row.querySelector('.expand-arrow');
+    if (arrow) arrow.classList.toggle('open', el.classList.contains('active'));
+  }
+}
+
+function esc(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+document.getElementById('tabs').addEventListener('click', e => {
+  if (e.target.classList.contains('tab')) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    e.target.classList.add('active');
+    currentView = e.target.dataset.view;
+    if (currentView !== 'models') pendingOnly = false;
+    sortKey = null; sortDir = 'asc';
+    render();
+  }
+});
+
+document.getElementById('tableHead').addEventListener('click', e => {
+  const th = e.target.closest('th[data-sort]');
+  if (!th) return;
+  const key = th.dataset.sort;
+  if (sortKey === key) {
+    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortKey = key;
+    sortDir = 'asc';
+  }
+  render();
+});
+
+document.getElementById('search').addEventListener('input', e => {
+  searchTerm = e.target.value;
+  render();
+});
+
+// ─── MODAL ──────────────────────────────
+async function openAddModal() {
+  editId = -1;
+  document.getElementById('modalTitle').textContent = '新增记录';
+  document.getElementById('modalSubmit').textContent = '添加';
+  document.getElementById('fBrand').value = '';
+  document.getElementById('fModel').value = '';
+  document.getElementById('fCost').value = '';
+  document.getElementById('fSell').value = '';
+  document.getElementById('fSN').value = '';
+  document.getElementById('fExtra').value = '';
+  document.getElementById('fAccessory').value = '';
+  document.getElementById('fAccPrice').value = '';
+  document.getElementById('fSN2').value = '';
+  document.getElementById('imgPreviewList').innerHTML = '';
+  window._pendingImages = [];
+  document.getElementById('priceHint').style.display = 'none';
+  document.getElementById('templateField').style.display = '';
+  // populate template dropdown
+  const sel = document.getElementById('fTemplate');
+  sel.value = '';
+  if (!window._tplCache) {
+    try {
+      const res = await fetch('/api/templates');
+      window._tplCache = await res.json();
+    } catch (e) { window._tplCache = []; }
+  }
+  sel.innerHTML = '<option value="">-- 手动输入 --</option>';
+  for (const t of window._tplCache) {
+    sel.innerHTML += `<option value="${t.brand}|||${t.model}">${t.model} · ${t.brand} (${t.count}笔)</option>`;
+  }
+  document.getElementById('modal').classList.add('active');
+  document.getElementById('fBrand').focus();
+}
+
+function openEditModal(idx) {
+  editId = idx;
+  const i = items[idx];
+  if (!i) return;
+  document.getElementById('modalTitle').textContent = '编辑记录';
+  document.getElementById('modalSubmit').textContent = '保存';
+  document.getElementById('templateField').style.display = 'none';
+  document.getElementById('priceHint').style.display = 'none';
+  document.getElementById('fBrand').value = i.brand;
+  document.getElementById('fModel').value = i.model;
+  document.getElementById('fCost').value = i.cost;
+  document.getElementById('fSell').value = i.sell;
+  document.getElementById('fSN').value = i.sn || '';
+  document.getElementById('fExtra').value = i.extra_price || '';
+  document.getElementById('fAccessory').value = i.accessory || '';
+  document.getElementById('fAccPrice').value = i.accessory_price || '';
+  document.getElementById('fSN2').value = i.sn2 || '';
+  window._pendingImages = [];
+  const previewList = document.getElementById('imgPreviewList');
+  previewList.innerHTML = '';
+  const imgs = Array.isArray(i.images) ? i.images : (i.images ? [i.images] : []);
+  imgs.forEach((img, idx) => {
+    const src = img.startsWith('http') ? img : '/api/images/' + img;
+    previewList.innerHTML += `<div style="position:relative;display:inline-block"><img src="${src}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border)"><button onclick="removeExistingImage(${idx})" style="position:absolute;top:-6px;right:-6px;background:var(--red);border:none;color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;line-height:1">×</button></div>`;
+  });
+  document.getElementById('modal').classList.add('active');
+  document.getElementById('fBrand').focus();
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('active');
+  editId = -1;
+  if (dirtyWhileEditing) {
+    dirtyWhileEditing = false;
+    syncFromDisk();
+  }
+}
+
+async function confirmDelete(idx, label) {
+  if (confirm('确认删除 「' + label + '」？\n此操作不可撤销。')) {
+    await deleteItem(idx);
+  }
+}
+
+document.getElementById('modalSubmit').addEventListener('click', async () => {
+  const record = {
+    brand: document.getElementById('fBrand').value.trim(),
+    model: document.getElementById('fModel').value.trim(),
+    cost: parseFloat(document.getElementById('fCost').value) || 0,
+    sell: parseFloat(document.getElementById('fSell').value) || 0,
+    sn: document.getElementById('fSN').value.trim(),
+    extra_price: parseFloat(document.getElementById('fExtra').value) || 0,
+    accessory: document.getElementById('fAccessory').value.trim(),
+    accessory_price: parseFloat(document.getElementById('fAccPrice').value) || 0,
+    sn2: document.getElementById('fSN2').value.trim(),
+  };
+  if (!record.brand || !record.model) { alert('品牌和型号不能为空'); return; }
+  await saveItem(record);
+  if (window._pendingImages && window._pendingImages.length > 0) {
+    const newItemIdx = items.length - 1;
+    for (const file of window._pendingImages) {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('record_idx', newItemIdx);
+      await fetch('/api/upload', { method: 'POST', body: fd });
+    }
+    await fetchItems();
+  }
+  window._pendingImages = [];
+  closeModal();
+});
+
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal')) closeModal();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Enter' && document.getElementById('modal').classList.contains('active')) {
+    document.getElementById('modalSubmit').click();
+  }
+});
+
+// ─── TEMPLATE & PRICE HINT ──────────────
+document.getElementById('fTemplate').addEventListener('change', () => {
+  const val = document.getElementById('fTemplate').value;
+  if (!val) return;
+  const [brand, model] = val.split('|||');
+  document.getElementById('fBrand').value = brand;
+  document.getElementById('fModel').value = model;
+  document.getElementById('fCost').focus();
+  fetchPriceHint(brand, model);
+});
+
+document.getElementById('fBrand').addEventListener('input', () => {
+  document.getElementById('fTemplate').value = '';
+});
+
+document.getElementById('fModel').addEventListener('input', () => {
+  document.getElementById('fTemplate').value = '';
+  const brand = document.getElementById('fBrand').value.trim();
+  const model = document.getElementById('fModel').value.trim();
+  fetchPriceHint(brand, model);
+});
+
+let priceDebounceTimer = null;
+function fetchPriceHint(brand, model) {
+  const hint = document.getElementById('priceHint');
+  if (!brand || !model) { hint.style.display = 'none'; return; }
+  clearTimeout(priceDebounceTimer);
+  priceDebounceTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`/api/prices?brand=${encodeURIComponent(brand)}&model=${encodeURIComponent(model)}`);
+      const data = await res.json();
+      if (data.count > 0) {
+        hint.innerHTML = `参考售价: ¥${data.sell_min|0}-${data.sell_max|0} | 均价 ¥${(data.sell_avg||0)|0} <span style="opacity:0.6">(${data.count}笔)</span>`;
+        hint.style.cssText = 'display:block;color:var(--cyan);background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.2);text-shadow:0 0 8px rgba(0,229,255,0.3)';
+      } else {
+        hint.textContent = '暂无历史数据';
+        hint.style.cssText = 'display:block;color:var(--muted);background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);text-shadow:none';
+      }
+    } catch (e) { hint.style.display = 'none'; }
+  }, 500);
+}
+
+// ─── LOGO UPLOAD ───────────────────────
+let logoUploadTarget = 'left';
+
+function uploadLogo(side) {
+  logoUploadTarget = side;
+  document.getElementById('logoInput').click();
+}
+
+function handleLogoUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const slotId = logoUploadTarget === 'left' ? 'logoLeft' : 'logoRight';
+    const slot = document.getElementById(slotId);
+    const img = slot.querySelector('img');
+    const placeholder = slot.querySelector('.logo-placeholder');
+    img.src = ev.target.result;
+    img.style.display = '';
+    if (placeholder) placeholder.style.display = 'none';
+    try {
+      localStorage.setItem('msi-logo-' + logoUploadTarget, ev.target.result);
+    } catch(ex) {}
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+(function restoreLogos() {
+  ['left', 'right'].forEach(side => {
+    const saved = localStorage.getItem('msi-logo-' + side);
+    if (saved) {
+      const slotId = side === 'left' ? 'logoLeft' : 'logoRight';
+      const slot = document.getElementById(slotId);
+      const img = slot.querySelector('img');
+      const placeholder = slot.querySelector('.logo-placeholder');
+      img.src = saved;
+      img.style.display = '';
+      if (placeholder) placeholder.style.display = 'none';
+    }
+  });
+})();
+
+render();
+fetchItems();
+
+// ─── CSV IMPORT ──────────────────────────
+function importCSV() {
+  document.getElementById('csvFileInput').click();
+}
+
+async function handleCSVUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const text = await file.text();
+  try {
+    const res = await fetch('/api/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ csv_text: text, skip_duplicates: true })
+    });
+    const result = await res.json();
+    if (result.ok) {
+      let msg = `导入完成！成功: ${result.imported} 条`;
+      if (result.skipped > 0) msg += `，跳过重复: ${result.skipped} 条`;
+      if (result.errors.length > 0) {
+        msg += `\n\n错误详情:\n${result.errors.map(e => `第${e.line}行: ${e.error}`).join('\n')}`;
+      }
+      alert(msg);
+      fetchItems();
+    } else {
+      alert('���入失败: ' + (result.error || '未知错误'));
+    }
+  } catch (e) {
+    alert('导入失败: ' + e.message);
+  }
+  event.target.value = '';
+}
+
+// ─── OCR RECOGNITION ────────────────────
+function parseOCRText(text) {
+  const knownBrands = ['微星', '华硕', '技嘉', '七彩虹', '铭瑄', '英睿达', '金百达', '影驰', 'AMD', 'INTER', 'OLOY'];
+  let brand = '';
+  for (const b of knownBrands) {
+    if (text.includes(b)) { brand = b; break; }
+  }
+  const modelPatterns = [
+    /([BHQZX]\d{2,3}[a-zA-Z-]*[一-鿿]*(?:\s*(?:gaming|wifi|pro|plus|edge|tomahawk|迫击炮|爆破弹|重炮手|小雕|电竞之心))?)/i,
+    /(RTX\s*\d{3,4}[a-zA-Z]*)/i,
+    /(GTX\s*\d{3,4}[a-zA-Z]*)/i,
+    /(liquid\s*\w*\d*)/i,
+    /(M?die\s*\d+G)/i,
+    /([A-Z]\d{3}[a-zA-Z-]*)/,
+  ];
+  let model = '';
+  for (const pat of modelPatterns) {
+    const m = text.match(pat);
+    if (m) { model = m[1].trim(); break; }
+  }
+  const priceMatches = [...text.matchAll(/[¥￥]\s*(\d{2,5})/g)];
+  let prices = priceMatches.map(m => parseInt(m[1])).filter(p => p > 10 && p < 50000);
+  let price = prices.length > 0 ? Math.max(...prices) : '';
+  return { brand, model, price };
+}
+
+function ocrFromScreenshot() {
+  document.getElementById('ocrFileInput').click();
+}
+
+async function handleOCRUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (typeof Tesseract === 'undefined') {
+    alert('OCR引擎加载中，请稍后再试');
+    event.target.value = '';
+    return;
+  }
+  document.getElementById('ocrBtn').textContent = '识别中...';
+  document.getElementById('ocrBtn').disabled = true;
+  try {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    const { data: { text } } = await Tesseract.recognize(canvas, 'chi_sim+eng', {
+      logger: m => { if (m.status === 'recognizing text') document.getElementById('ocrBtn').textContent = `识别中 ${Math.round(m.progress*100)}%`; }
+    });
+    const result = parseOCRText(text);
+    await openAddModal();
+    if (result.brand) document.getElementById('fBrand').value = result.brand;
+    if (result.model) document.getElementById('fModel').value = result.model;
+    if (result.price) document.getElementById('fSell').value = result.price;
+    document.getElementById('templateField').style.display = 'none';
+    // show OCR warning
+    const title = document.getElementById('modalTitle');
+    title.textContent = '新增记录 — OCR识别结果仅供参考';
+    title.style.color = 'var(--amber)';
+    setTimeout(() => { title.style.color = ''; }, 5000);
+  } catch (e) {
+    console.error('OCR failed:', e);
+    alert('OCR识别失败，请手动输入');
+  }
+  document.getElementById('ocrBtn').textContent = 'OCR识别';
+  document.getElementById('ocrBtn').disabled = false;
+  event.target.value = '';
+}
+
+// ─── CHAT PANEL ─────────────────────────────
+function toggleChat() {
+  const panel = document.getElementById('chatPanel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) {
+    document.getElementById('chatInput').focus();
+  }
+}
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  const messages = document.getElementById('chatMessages');
+  messages.innerHTML += `<div class="chat-msg user">${esc(msg)}</div>`;
+  messages.innerHTML += `<div class="chat-msg ai" id="chatTyping"><span style="color:var(--muted)">思考中...</span></div>`;
+  messages.scrollTop = messages.scrollHeight;
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg })
+    });
+    const data = await res.json();
+    const typing = document.getElementById('chatTyping');
+    if (typing) typing.removeAttribute('id');
+    let reply = data.reply || data.error || '无响应';
+    if (data.steps && data.steps.length > 0) {
+      const stepsHtml = data.steps.map(s => `<div style="font-size:11px;color:var(--muted);padding:2px 0;border-bottom:1px solid var(--border)">🔧 ${esc(s)}</div>`).join('');
+      reply = `<details style="margin-bottom:6px"><summary style="cursor:pointer;color:var(--cyan);font-size:11px">推理过程 (${data.steps.length}步)</summary>${stepsHtml}</details>${reply}`;
+    }
+    messages.innerHTML += `<div class="chat-msg ai">${reply}</div>`;
+  } catch (e) {
+    messages.innerHTML += `<div class="chat-msg ai" style="color:var(--red)">请求失败: ${esc(e.message)}</div>`;
+  }
+  messages.scrollTop = messages.scrollHeight;
+}
+
+// ─── SMART ENTRY ────────────────────────────
+function toggleSmartEntry() {
+  document.getElementById('smartEntry').classList.toggle('open');
+}
+
+async function smartParse() {
+  const input = document.getElementById('smartInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const resultDiv = document.getElementById('smartResult');
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = '<span style="color:var(--cyan)">解析中...</span>';
+  try {
+    const res = await fetch('/api/smart-parse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    const data = await res.json();
+    if (data.error) { resultDiv.innerHTML = `<span style="color:var(--red)">${esc(data.error)}</span>`; return; }
+    await openAddModal();
+    const fieldMap = { brand: 'fBrand', model: 'fModel', cost: 'fCost', sell: 'fSell', sn: 'fSN', accessory: 'fAccessory', accessory_price: 'fAccPrice', extra_price: 'fExtra' };
+    let filled = [];
+    for (const [key, id] of Object.entries(fieldMap)) {
+      if (data[key] !== undefined && data[key] !== null && data[key] !== '') {
+        document.getElementById(id).value = data[key];
+        filled.push(key);
+      }
+    }
+    resultDiv.innerHTML = `<span style="color:var(--green)">已解析并填充 ${filled.length} 个字段: ${filled.join(', ')}</span>`;
+    input.value = '';
+  } catch (e) {
+    resultDiv.innerHTML = `<span style="color:var(--red)">解析失败: ${esc(e.message)}</span>`;
+  }
+}
+
+// ─── IMAGE UPLOAD ───────────────────────────
+function handleImageSelect(event) {
+  const files = Array.from(event.target.files);
+  if (!files.length) return;
+  if (!window._pendingImages) window._pendingImages = [];
+  const previewList = document.getElementById('imgPreviewList');
+  files.forEach(file => {
+    window._pendingImages.push(file);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const div = document.createElement('div');
+      div.style.cssText = 'display:inline-block;position:relative';
+      div.innerHTML = `<img src="${e.target.result}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">`;
+      previewList.appendChild(div);
+    };
+    reader.readAsDataURL(file);
+  });
+  event.target.value = '';
+}
+
+function removeExistingImage(idx) {
+  const item = items[idx];
+  if (!item) return;
+  const imgs = Array.isArray(item.images) ? [...item.images] : (item.images ? [item.images] : []);
+  const filename = imgs[idx];
+  if (filename) {
+    fetch('/api/data/' + idx + '/images/' + encodeURIComponent(filename), { method: 'DELETE' }).then(() => fetchItems());
+  }
+}
+
+// ─── IMAGE VIEWER ───────────────────────────
+let _viewerImages = [];
+let _viewerIdx = 0;
+
+function openImageViewer(images, startIdx) {
+  _viewerImages = images;
+  _viewerIdx = startIdx || 0;
+  const overlay = document.getElementById('imgViewer');
+  overlay.style.display = 'flex';
+  _updateViewer();
+}
+
+function closeImageViewer(event) {
+  if (event && event.target.tagName === 'BUTTON') return;
+  document.getElementById('imgViewer').style.display = 'none';
+}
+
+function imgViewerNav(dir) {
+  _viewerIdx = (_viewerIdx + dir + _viewerImages.length) % _viewerImages.length;
+  _updateViewer();
+}
+
+function _updateViewer() {
+  const img = _viewerImages[_viewerIdx];
+  const src = img && img.startsWith('http') ? img : '/api/images/' + img;
+  document.getElementById('imgViewerImg').src = src;
+  document.getElementById('imgViewerCounter').textContent = `${_viewerIdx + 1} / ${_viewerImages.length}`;
+}
+</script>
+
+<script>
+// ─── PARTICLE SYSTEM ──────────────────────
+(function() {
+  const canvas = document.getElementById('particles');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const COLORS = ['#80d8ff','#ff6bcb','#b388ff','#e040fb','#40c4ff','#ff80ab','#aa80ff'];
+  const COUNT = 80;
+  let W, H;
+  const particles = [];
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  class Particle {
+    constructor() {
+      this.reset(true);
+    }
+    reset(initial) {
+      this.x = initial ? Math.random() * W : (Math.random() < 0.5 ? -30 : W + 30);
+      this.y = initial ? Math.random() * H : H + 30;
+      this.vx = (Math.random() - 0.5) * 0.5;
+      this.vy = -0.3 - Math.random() * 0.9;
+      this.size = 0.6 + Math.random() * 2.2;
+      this.color = COLORS[Math.floor(Math.random() * COLORS.length)];
+      this.baseAlpha = 0.15 + Math.random() * 0.5;
+      this.twinkle = Math.random() * Math.PI * 2;
+      this.twinkleSpeed = 0.008 + Math.random() * 0.025;
+    }
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      if (this.y < -40) { this.y = H + 30; this.x = Math.random() * W; }
+      if (this.y > H + 40) { this.y = -30; this.x = Math.random() * W; }
+      if (this.x < -40) this.x = W + 30;
+      if (this.x > W + 40) this.x = -30;
+      this.twinkle += this.twinkleSpeed;
+    }
+    draw() {
+      this.alpha = this.baseAlpha * (0.6 + 0.4 * Math.sin(this.twinkle));
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size * 2.5, 0, Math.PI * 2);
+      const r = parseInt(this.color.slice(1,3), 16);
+      const g = parseInt(this.color.slice(3,5), 16);
+      const b = parseInt(this.color.slice(5,7), 16);
+      ctx.fillStyle = `rgba(${r},${g},${b},${this.alpha * 0.25})`;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.globalAlpha = this.alpha;
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  for (let i = 0; i < COUNT; i++) particles.push(new Particle());
+
+  function drawLines() {
+    const max = 100;
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const d = Math.sqrt(dx*dx + dy*dy);
+        if (d < max) {
+          const a = (1 - d / max) * 0.1;
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(160,160,240,${a})`;
+          ctx.lineWidth = 0.35;
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, W, H);
+    drawLines();
+    particles.forEach(p => { p.update(); p.draw(); });
+    requestAnimationFrame(animate);
+  }
+  animate();
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</body>
+</html>
