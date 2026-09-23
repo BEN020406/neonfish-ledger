@@ -1,5 +1,7 @@
 # Normalize line endings explicitly: repo default core.autocrlf=true would
 # otherwise silently rewrite LF artifacts to CRLF on a fresh checkout.
+/.gitignore text eol=lf
+/.gitattributes text eol=lf
 *.py  text eol=lf
 *.js  text eol=lf
 *.html text eol=lf
