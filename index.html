@@ -1140,6 +1140,9 @@ function parseItems(raw) {
     cost: safeFloat(r.cost),
     sell: safeFloat(r.sell),
     sn: r.sn || '',
+    accessory: r.accessory || '',
+    accessory_price: safeFloat(r.accessory_price),
+    sn2: r.sn2 || '',
     extra_price: safeFloat(r.extra_price) || 0,
     profit: safeFloat(r.sell) - safeFloat(r.cost),
     get platform() { return detectPlatform(this.model); },
@@ -1651,7 +1654,7 @@ async function openAddModal() {
 
 function openEditModal(idx) {
   editId = idx;
-  const i = items[idx];
+  const i = items.find(x => x.id === idx);
   if (!i) return;
   document.getElementById('modalTitle').textContent = '编辑记录';
   document.getElementById('modalSubmit').textContent = '保存';

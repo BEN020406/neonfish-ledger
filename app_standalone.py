@@ -48,10 +48,13 @@ def load_data():
 
 
 def save_data(data):
+    payload = json.dumps(data, ensure_ascii=False, indent=2)
     if os.path.exists(DATA_FILE):
         shutil.copy2(DATA_FILE, DATA_FILE + '.bak')
-    with open(DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    tmp = DATA_FILE + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        f.write(payload)
+    os.replace(tmp, DATA_FILE)
 
 
 def _to_float(value, default=0.0):

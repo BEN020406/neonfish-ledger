@@ -8,6 +8,10 @@
 
 # ─── Credentials & browser session state ───
 /xianyu_cookies.json
+# 含硬编码 MySQL 明文账号口令，抽成配置前不进版本控制（抽出后删掉这三行）
+/xianyu_review.py
+/xianyu_scraper.py
+/xianyu_review.html
 /.browser_data/
 .env
 *.env
