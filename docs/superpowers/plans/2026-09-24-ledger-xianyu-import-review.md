@@ -36,6 +36,7 @@
 | `xianyu_review.py` | 导入页后端 | `import_orders` 补 3 个键（**不进 git**，含明文口令） |
 | `xianyu_review.html` | 导入页前端 | POST 载荷补 `order_date`/`item_title`/`paid`（**不进 git**） |
 | `xianyu_backfill.py` | 一次性回填 18 条 | 新建：`build_updates()` 纯函数 + MySQL 适配层，默认 dry-run |
+| `tests/conftest.py` | 测试地基（Task 1 实际产出）：repo 根进 `sys.path`、session 级 autouse 把 `DATA_FILE`/`IMAGES_DIR` 指向沙箱、共享 `api` fixture、会话结束时校验真实 `data.json` 未被改 | 新建 |
 | `tests/test_ledger_api.py` | 后端黑盒测试 | 新建：fixture 起临时实例 |
 | `tests/test_backfill.py` | 回填纯函数测试 | 新建 |
 | `tests/test_review_import.py` | 导入写盘测试 | 新建 |
@@ -399,6 +400,36 @@ def save_data(data, stamp=None):
 
 Run: `python -X utf8 -m pytest tests/test_ledger_api.py -v`
 Expected: 5 passed
+
+> **实现更正（Task 2 落地后，后面所有任务按这一段执行，别回看上面的草图）**
+>
+> - `stamp = file_stamp()` 取在 `load_data()` **之前**，不是之后。放在之后就漏掉"读完才指纹"这一瞬：
+>   外部写正好插在 `load_data()` 与 `file_stamp()` 之间时，指纹看着仍然"和我读到那份一样"，于是照样覆盖。
+>   取在前面，守护覆盖的才是完整的"读 → 改 → 写"区间。
+> - 冲突检查排在 `.bak` 轮转**之前**：被拒的那次写盘连唯一一代备份都不许销毁。
+>   `test_save_data_refuses_to_clobber_external_writer` 同时钉住"没写盘 / 没留 `.tmp` / `.bak` 字节不变"。
+> - 五个写盘点全部带 stamp：`handle_add_record`、`handle_update_record`、`handle_delete_record`、
+>   `handle_upload`（带 `record_idx` 时的那次写盘）、`handle_delete_image`。`_agent_add_record` 保持不带，
+>   理由写死在函数注释里，并有 `test_every_http_write_path_passes_a_stamp` 这条静态守卫挡"顺手补齐"。
+> - `handle_delete_record` 把"删图片文件"挪到写盘成功之后：否则 409 时 `data.json` 还引用着那些图，图却已经没了。
+>   `handle_upload` 反方向：图已落盘而账本没写进去，留下的只是一个没人引用的孤儿文件，这一点在代码注释里明说并接受。
+> - 冲突回复固定为 `HTTP 409` + `{"ok": false, "error": "data.json changed elsewhere, reloaded"}`。
+>   **前端只按 `resp.status === 409` 分支，不要拿这句文案当判据**；文案在
+>   `tests/test_ledger_api.py::CONFLICT_ERROR` 里逐字钉着，改它是一次显式的契约变更。
+> - 用例数以实际为准：Task 1 合并后 `tests/test_ledger_api.py` 是 11 条，Task 2 之后是 20 条
+>   （上面 Step 5 写的"5 passed"是草图阶段的数字，作废）。
+> - **本任务只做到"拒绝覆盖"，没做到"前端不再拿旧下标写"**。前端拿的是 `data.json` 的数组下标：
+>   导入页追加不会移动下标，但删除和拆分会 —— 那个窗口 stamp 看不见（后端写之前自己重读了一遍，
+>   它比客户端看到的更新，冲突因此不会触发）。前端侧的兜底写在 **Task 6 Step 7b**（保存/删除）与
+>   **Task 8 Step 5b**（拆单）：收到 409 一律先重拉再让用户照着新数据重做。要彻底堵住，得让前端把
+>   自己读到的指纹带回来（`If-Match`）或给记录一个稳定 id，本计划不做，别以为 409 已经覆盖一切。
+> - **守护是单向的**：只有账本后端（8765）带 stamp。导入页自己那份 `save_ledger`
+>   （`xianyu_review.py:194`）照旧是无条件整写，它把账本窗口刚加的记录抹掉时**不会**被拒。
+>   本任务范围只到 `app_standalone.py`；要补这一半，改动点在 Task 4 拥有的那个文件里。
+> - 两个进程轮的是**同一个** `data.json.bak`、写的也是**同一个** `data.json.tmp`。stamp 只解决
+>   "逻辑上谁覆盖谁"，解决不了"同名临时文件被两边同时打开/换名"这种文件系统层面的竞态
+>   （Windows 上更可能直接表现为 `os.replace` 报错）。规格说"不做完整文件锁"，这条就是那个决定的代价：
+>   将来真出现半截 `.tmp` 或备份莫名失踪，先回来看这一条。
 
 - [ ] **Step 6: 提交**
 
@@ -1151,6 +1182,93 @@ Expected: `domGroups=1`（空态那一行）且 `document.querySelector('.orders
 
 Expected: 4 个视图都 `rows > 0`，无 console 报错（用 `list_console_messages` 复查，必须为空）。
 
+- [ ] **Step 7b: 409 的前端半段 —— 被拒之后必须丢掉旧视图（Task 2 守卫的落地部分）**
+
+Task 2 已经把后端做成"检测到外部写就回 `HTTP 409` + `{"ok": false, ...}`"，但 `saveItem` / `deleteItem`
+（`index.html:1211-1225`）**完全丢掉响应**，所以 409 和保存成功在页面上长得一模一样：弹窗照关、
+列表照刷，用户以为改好了 —— 而 `fetchItems()` 会把那一行刷回改动前的值，看起来像"账本自己把我的修改吃了"。
+规格 §12 风险 2 要求的是"拒绝覆盖并提示刷新"，提示这一半在这里补。
+
+把 `saveItem` / `deleteItem` 整段替换（`index.html:1211-1225`）：
+
+```javascript
+const HTTP_CONFLICT = 409;   // 判据只看 status，后端那句 error 文案是给人看的
+
+async function recoverFromConflict(what) {
+  await fetchItems();        // 关键：丢掉旧视图，重拉整本账，绝不继续拿着下标写
+  showToast(`账本已在别处被改动（导入页或另一个窗口），${what}未生效；已重新载入最新数据，请核对后重做`, 'err');
+  if (editId >= 0 && document.getElementById('modal').classList.contains('active')) {
+    // 下标可能已经指向另一条记录（外部删除/拆分会移动下标）。宁可把表单刷成新内容，
+    // 也不能让用户照着刚才那一版再点一次保存 —— 那会写进别人的行。
+    openEditModal(editId);
+  }
+}
+
+async function saveItem(record) {
+  const resp = editId >= 0
+    ? await fetch(API + '/' + editId, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(record) })
+    : await fetch(API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(record) });
+  if (resp.status === HTTP_CONFLICT) { await recoverFromConflict('保存'); return false; }
+  await fetchItems();
+  window._tplCache = null;
+  return true;
+}
+
+async function deleteItem(idx) {
+  const resp = await fetch(API + '/' + idx, { method: 'DELETE' });
+  if (resp.status === HTTP_CONFLICT) { await recoverFromConflict('删除'); return false; }
+  await fetchItems();
+  window._tplCache = null;
+  return true;
+}
+```
+
+`modalSubmit` 处理器（`index.html:1699` 起）里，把 `await saveItem(record);` 改成拿到返回值再走：
+
+```javascript
+  if (!await saveItem(record)) return;   // 409：不关弹窗、不上传待传图片、不清 _pendingImages
+```
+
+（这一行后面原本的 `if (window._pendingImages …)` 上传循环和 `closeModal()` 全都保持不动，
+只是被这个提前 return 挡在后面。）
+
+验证仍然在 8790 夹具页上跑。真冲突的窗口只有几微秒，人手触发不了，所以这里**故意把 PUT 的响应换成 409**，
+测的是前端对契约的反应，后端那半段由 `tests/test_ledger_api.py` 负责：
+
+```javascript
+async () => {
+  const real = window.fetch;
+  let hit = null;
+  window.fetch = async (url, opts) => {
+    if (opts && opts.method === 'PUT') {
+      hit = String(url);
+      return new Response(JSON.stringify({ok: false, error: 'data.json changed elsewhere, reloaded'}),
+        {status: 409, headers: {'Content-Type': 'application/json'}});
+    }
+    return real(url, opts);
+  };
+  const before = await real('/api/data').then(r => r.json());
+  openEditModal(0);
+  document.getElementById('fCost').value = 4242;
+  document.getElementById('modalSubmit').click();
+  await new Promise(r => setTimeout(r, 900));
+  window.fetch = real;
+  const after = await real('/api/data').then(r => r.json());
+  return { putUrl: hit, count: [before.length, after.length],
+           costOnDisk: after[0].cost, formCost: document.getElementById('fCost').value,
+           toast: document.getElementById('toast').textContent,
+           toastClass: document.getElementById('toast').className,
+           modalStillOpen: document.getElementById('modal').classList.contains('active') };
+}
+```
+
+Expected（fixture `ledger_with_orders.json` 的第 0 条买价是 600）：
+
+- `putUrl` 含 `/api/data/0`，`count` 两项相等且等于 `records=6`（409 之后没有任何写落盘）；
+- `costOnDisk = 600`、`formCost = '600'` —— **表单被刷成了新数据而不是留着 4242**，这条就是"不再拿旧视图写"；
+- `toastClass` 含 `err`，`toast` 含 `账本已在别处被改动`；
+- `modalStillOpen = true`（用户没被踢出弹窗，但看到的是最新那一行）。
+
 - [ ] **Step 8: 提交**
 
 ```bash
@@ -1459,6 +1577,66 @@ async () => {
 ```
 
 Expected: `count=2`、`paid=[600]`（**基线没变**）、`costs=[600,200]`、`groups=3`。
+
+- [ ] **Step 5b: 拆单遇到 409 必须重新锚定下标（Task 2 守卫在拆单路径的落地）**
+
+Step 2 的 `submitSplit` 里那段通用失败分支是刻意"保留弹窗与已填内容"的，但对 409 **不能照它办**：
+`_splitRows[].idx` 存的是 `data.json` 的数组下标，外部只要删过或拆过一次记录，下标就整体前移，
+用户再点一次"保存拆分"就会把成本写进别的记录 —— 这正是要防的那类静默错账。所以 409 要**先重拉、再按订单号重建行**。
+
+在 Step 2 的 `submitSplit` 里，把这一段：
+
+```javascript
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok || !json.ok) {
+```
+
+改成（409 分支必须在通用失败分支**之前**，409 的 `ok` 同样是 false）：
+
+```javascript
+  if (resp.status === HTTP_CONFLICT) {          // 常量来自 Task 6 Step 7b
+    await fetchItems();                          // 先拿回真实账本
+    showToast('账本已在别处被改动，拆分未生效；已按最新数据重建这些行，请核对后再保存', 'err');
+    openSplitModal(_splitOid);                   // 用新数据重建 _splitRows：老下标可能已指向别的记录
+    return;
+  }
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok || !json.ok) {
+```
+
+验证（夹具页，同样故意把 `/api/split_record` 换成 409 —— 真实竞态窗口是微秒级，人手踩不到）：
+
+```javascript
+async () => {
+  const real = window.fetch;
+  window.fetch = async (url, opts) => {
+    if (String(url).includes('/api/split_record'))
+      return new Response(JSON.stringify({ok: false, error: 'data.json changed elsewhere, reloaded'}),
+        {status: 409, headers: {'Content-Type': 'application/json'}});
+    return real(url, opts);
+  };
+  const before = await real('/api/data').then(r => r.json());
+  currentView = 'orders'; render();
+  const a1 = [...document.querySelectorAll('.order-group')].find(g => g.dataset.oid === 'A1');
+  a1.querySelector('.order-split-btn').click();
+  const rowsBefore = document.querySelectorAll('.split-row').length;
+  document.querySelectorAll('.split-row')[0].children[2].value = 1234;
+  document.querySelectorAll('.split-row')[0].children[2].dispatchEvent(new Event('input', { bubbles: true }));
+  document.getElementById('splitSubmit').click();
+  await new Promise(r => setTimeout(r, 900));
+  window.fetch = real;
+  const after = await real('/api/data').then(r => r.json());
+  const costs = [...document.querySelectorAll('.split-row')].map(r => r.children[2].value);
+  return { count: [before.length, after.length], costs, rowsBefore,
+           rowsAfter: costs.length, idxRestored: costs.indexOf('1234') === -1,
+           toastClass: document.getElementById('toast').className,
+           stillOpen: document.getElementById('splitModal').classList.contains('active') };
+}
+```
+
+Expected：`count` 两项相等（409 后一条都没写）、`rowsAfter === rowsBefore`（弹窗没被关掉，行按新数据重建）、
+**`idxRestored === true`**（用户刚填的 1234 被新数据覆盖掉了 —— 这是刻意的：宁可重填，也不能拿旧下标再提交）、
+`toastClass` 含 `err`、`stillOpen = true`。
 
 - [ ] **Step 6: 提交**
 
