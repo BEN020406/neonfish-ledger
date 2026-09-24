@@ -1019,3 +1019,253 @@ def test_legacy_crud_out_of_range_index_is_still_404_without_any_external_write(
     assert _split_files_snapshot(path) == before, "越界请求把数据、备份或图片改动了"
     assert not Path(path + ".tmp").exists(), "被拒绝的写盘不该留下半成品"
     assert load() == records
+
+
+# ─── 第三轮返工 条目3: images 的元素类型必须校验（它已经进了渲染路径）───
+
+BAD_IMAGE_VALUES = [
+    ["keep.jpg", 42],
+    [None],
+    [{"url": "keep.jpg"}],
+    [True],
+    "keep.jpg",
+    {"0": "keep.jpg"},
+    7,
+]
+
+
+@pytest.mark.parametrize("images", BAD_IMAGE_VALUES)
+def test_add_record_rejects_bad_images_without_touching_the_disk(api, images):
+    """images 里任何非字符串元素、或整个值不是数组：400 并且沙盒逐字节不变。
+
+    52579b6 之后 images 会透传给三处 UI（行内缩略图 / 图片查看器 / 弹窗预览），
+    非字符串元素让 imgs[0].startsWith 抛错、整表渲染崩；整值是字符串则让
+    handle_delete_image 的 list.remove 变成 str.remove 直接 500。崩的是渲染，
+    脏数据是落盘带来的，所以只能拦在写入侧。
+    """
+    call, load, path = api
+    data_file = _prepare_race_files(api)
+    before = _split_files_snapshot(path)
+
+    status, resp = call("POST", "/api/data",
+                        {"brand": "微星", "model": "B650M", "cost": 1, "sell": 2, "images": images})
+    assert status == 400, (images, resp)
+    assert resp["ok"] is False and "images" in resp["error"], resp
+    assert _split_files_snapshot(path) == before, "被拒绝的 images 改动了账本、备份或图片"
+    assert not Path(path + ".tmp").exists(), "被拒绝的请求不该留下写盘半成品"
+
+
+@pytest.mark.parametrize("images", BAD_IMAGE_VALUES)
+def test_update_record_rejects_bad_images_without_touching_the_disk(api, images):
+    call, load, path = api
+    data_file = _prepare_race_files(api)
+    before = _split_files_snapshot(path)
+
+    status, resp = call("PUT", "/api/data/0", {"cost": 601, "images": images})
+    assert status == 400, (images, resp)
+    assert resp["ok"] is False and "images" in resp["error"], resp
+    assert _split_files_snapshot(path) == before, "被拒绝的 images 改动了账本、备份或图片"
+    assert not Path(path + ".tmp").exists(), "被拒绝的请求不该留下写盘半成品"
+
+
+@pytest.mark.parametrize("images", [[], ["keep.jpg"], ["a.png", "keep.jpg"]])
+def test_string_only_images_still_accepted(api, images):
+    """守卫只拒非法元素；真实账本里 images 缺失/空数组/纯字符串数组这三类都必须照旧能写。"""
+    call, load, path = api
+    _prepare_race_files(api)
+
+    status, resp = call("POST", "/api/data",
+                        {"brand": "微星", "model": "B650M", "cost": 1, "sell": 2, "images": images})
+    assert status == 200, (images, resp)
+    assert load()[-1]["images"] == images
+
+    status, resp = call("PUT", "/api/data/0", {"images": ["keep.jpg"]})
+    assert status == 200, resp
+    assert load()[0]["images"] == ["keep.jpg"]
+
+    # 省略 images 键仍然是"不动这一栏"，别把守卫写成必填。
+    status, resp = call("PUT", "/api/data/0", {"cost": 700})
+    assert status == 200, resp
+    assert load()[0]["images"] == ["keep.jpg"]
+
+
+# ─── 第三轮返工 条目6: 版本复查必须排在下标/来源/金额校验之前 ───
+
+# 外部删除把首条抹掉后，客户端那份版本里的 1 号下标在新账本中已经越界。
+STALE_INDEX_CASES = [
+    ("PUT", "/api/data/1", {"cost": 601}),
+    ("DELETE", "/api/data/1", None),
+    ("DELETE", "/api/data/1/images/keep.jpg", None),
+]
+
+# 请求体本身违法（会被降级成 400）时同样不许盖过 409。
+STALE_BODY_CASES = [
+    ("POST", "/api/data", {"brand": "微星", "model": "B650M", "cost": "abc"}),
+    ("PUT", "/api/data/0", {"cost": "12元"}),
+]
+
+
+@pytest.mark.parametrize("with_token", [True, False])
+@pytest.mark.parametrize("method,route,payload", STALE_INDEX_CASES)
+def test_external_delete_that_moves_index_out_of_range_still_answers_409(
+        api, monkeypatch, method, route, payload, with_token):
+    """外部改动让下标越界时，客户端要拿到 409，而不是被降级成 404。
+
+    前端按 status 分支：409 才会"丢掉表单+重拉列表"，404 会被读成"这条记录不存在/不能拆"，
+    于是页面继续挂着一份旧视图并保留旧下标，下一次写就作用在另一条记录上。
+    所以这道复查必须排在下标校验之前。
+    """
+    import app_standalone as m
+
+    call, load, path = api
+    data_file = _prepare_race_files(api)
+    first, second = load()
+    records = [dict(first, images=["keep.jpg"]), second]
+    data_file.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+    token = call("GET", "/api/data", with_headers=True)[2]["X-Ledger-Stamp"]
+
+    seen = {}
+    real_stamp, samples, loaded_versions, saved_stamps = _watch_stamps(
+        m, monkeypatch, data_file, records, seen, path)
+    status, resp = call(method, route, payload, if_match=token if with_token else None)
+
+    assert loaded_versions == [records[1:]], "外部删除没落在 load 之前，这个变异样本无效"
+    assert len(load()) == 1, "新账本里 1 号下标确实已经越界"
+    assert status == 409, (method, route, with_token, resp)
+    assert resp == {"ok": False, "error": CONFLICT_ERROR}
+    assert saved_stamps == [], "被拒的写盘仍然动了保存基准"
+    assert _split_files_snapshot(path) == seen["files"], "冲突之后数据、备份或图片被改过"
+    assert not Path(path + ".tmp").exists()
+    assert os.path.exists(os.path.join(m.IMAGES_DIR, "keep.jpg"))
+
+
+@pytest.mark.parametrize("method,route,payload", STALE_BODY_CASES)
+def test_stale_client_wins_over_its_own_invalid_body(api, monkeypatch, method, route, payload):
+    """版本已经过期时，请求体校验的 400 不许抢在 409 前面。
+
+    400 的语义是"你这个请求写坏了，改好再发"，前端会保留表单等用户改；
+    409 的语义是"你这份视图是旧的"。两者同时成立时只有后者能纠正客户端，
+    所以复查必须排在金额/images 这些请求体校验之前。
+    """
+    import app_standalone as m
+
+    call, load, path = api
+    data_file = _prepare_race_files(api)
+    first, second = load()
+    records = [dict(first, images=["keep.jpg"]), second]
+    data_file.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+    token = call("GET", "/api/data", with_headers=True)[2]["X-Ledger-Stamp"]
+
+    seen = {}
+    _watch_stamps(m, monkeypatch, data_file, records, seen, path)
+    status, resp = call(method, route, payload, if_match=token)
+
+    assert status == 409, (method, route, resp)
+    assert resp == {"ok": False, "error": CONFLICT_ERROR}
+    assert _split_files_snapshot(path) == seen["files"]
+    assert load() == records[1:]
+
+
+# ─── 第三轮返工：前端这几条契约也要有牙（沿用本文件既有的源码静态扫描风格）───
+
+INDEX_HTML = Path(__file__).resolve().parent.parent / "index.html"
+
+
+def _index_js():
+    return INDEX_HTML.read_text(encoding="utf-8")
+
+
+def _top_level_fn(src, header):
+    """取一个顶层函数体：从签名那行到第一个顶格的 }。这几个函数都是这个形状。"""
+    start = src.index(header)
+    end = src.index("\n}\n", start)
+    return src[start:end + 3]
+
+
+def _submit_wrap_up(src):
+    """modalSubmit 监听器到下一个监听器为止 —— 图片收尾窗口就在这段里。"""
+    start = src.index("document.getElementById('modalSubmit').addEventListener")
+    end = src.index("document.getElementById('modal').addEventListener", start)
+    return src[start:end]
+
+
+def test_parse_items_only_keeps_string_images():
+    """parseItems 只把字符串元素带进渲染路径。
+
+    写入侧的 400 拦不到账本里已有的历史脏数据，而这里的输出直接喂给
+    imgs[0].startsWith / img.startsWith，一个非字符串元素就能让整表崩。
+    """
+    src = _index_js()
+    body = _top_level_fn(src, "function parseItems(raw)")
+    assert re.search(r"images:[\s\S]{0,200}?\.filter\(s => typeof s === 'string'\)", body), \
+        "parseItems 的 images 不再过滤非字符串元素，脏数据会直接把 renderModels 打崩"
+
+
+def test_conflict_strategy_has_exactly_one_implementation():
+    """409 的处理策略只许有一份实现，两处只共享文案不同。
+
+    两份副本会分叉：改了一处的策略（比如"要不要自动重试"）另一处悄悄没跟上，
+    而这条是产品定死的行为，分叉的代价比文案分叉大得多。
+    """
+    src = _index_js()
+    assert "handleConflictAfterFormClosed" not in src, "又出现了第二份 409 策略实现"
+    assert src.count("async function handleConflict(") == 1, "409 策略被复制成了多份"
+    for const in ("CONFLICT_FORM_MSG", "CONFLICT_IMAGE_MSG"):
+        assert src.count("const %s =" % const) == 1, const + " 的文案被复制成了多份"
+        assert src.count(const) >= 2, const + " 只剩声明，没人用了"
+    # 表单那一路挂在默认参数上：调用点不带参数，合并没有改掉 saveItem/deleteItem 的语义
+    assert re.search(r"async function handleConflict\(msg = CONFLICT_FORM_MSG\)", src), \
+        "默认文案不再是表单那一路，saveItem/deleteItem 的 409 提示会被顺手改掉"
+    assert "handleConflict(CONFLICT_IMAGE_MSG)" in _submit_wrap_up(src), \
+        "收尾窗口没吃到图片那一路的文案"
+    assert src.count("await handleConflict()") >= 2, "saveItem/deleteItem 的 409 分支被改了调用形状"
+
+
+def test_stale_write_early_return_clears_both_image_queues():
+    """提交失败（409）时两条待处理队列都要显式清掉，不靠 closeModal() 的副作用。
+
+    只清 _pendingImages 的话，陈着的待删任务会挂在 window 上；
+    依赖副作用意味着谁把 closeModal 里那句清理挪走，这里就静默漏一条。
+    """
+    src = _index_js()
+    wrap = _submit_wrap_up(src)
+    m = re.search(r"if \(!written\) \{(.*?)\n  \}", wrap, re.S)
+    assert m, "找不到提交失败后的早退分支，返回形状变了要一起复核"
+    early = m.group(1)
+    assert "window._pendingImages = []" in early, "早退分支漏清待传图片"
+    assert "window._pendingImageRemovals = []" in early, "早退分支只清了待传图片，待删队列还靠着 closeModal 的副作用"
+
+
+def test_wrap_up_window_blocks_reopening_and_clears_in_finally():
+    """写盘收尾窗口期间不许重开表单/发行内删除，且标志必须在 finally 里清。
+
+    这段窗口里每写一次盘都会推进全局版本：期间锁到的 _formStamp 必然会被后面的写
+    推过期，用户白吃一次虚警 409、刚填的输入被丢掉。真实图片上传耗时几百毫秒，踩得到。
+    """
+    src = _index_js()
+    wrap = _submit_wrap_up(src)
+    assert "_ledgerBusy = true" in wrap, "收尾窗口不再置位，重开表单又会必现虚警 409"
+    assert wrap.index("_ledgerBusy = true") < wrap.index("closeModal();"), \
+        "置位必须排在收窗之前：晚一步用户就能在中间点开一份会吃到假 409 的表单"
+    assert re.search(r"finally\s*\{[\s\S]*?_ledgerBusy = false", wrap), \
+        "_ledgerBusy 没在 finally 里清，收尾中途抛异常会把页面永久锁死"
+    for header in ("async function openAddModal()", "function openEditModal(", "async function confirmDelete("):
+        assert "_ledgerBusy" in _top_level_fn(src, header), "%s 少了收尾窗口的守卫" % header
+
+
+def test_pending_image_removals_carry_and_recheck_identity():
+    """待删图片入队时记下身份快照，发 DELETE 前复核下标归属。
+
+    idx 是打开弹窗那一刻的原始下标；收尾窗口每写一次都要重读列表，外部增删之后
+    同一个 idx 已经指向另一条记录。后端只会静默 no-op，客户端必须自己发现这一刀没砍中。
+    """
+    src = _index_js()
+    enqueue = _top_level_fn(src, "function removeExistingImage(")
+    assert re.search(r"push\(\{[^}]*brand:\s*item\.brand[^}]*model:\s*item\.model", enqueue, re.S), \
+        "待删队列不再带身份快照，收尾时下标归属无从复核"
+    wrap = _submit_wrap_up(src)
+    assert "items.find(x => x.id === job.idx)" in wrap, "收尾循环不再按下标找回那条记录"
+    assert "target.brand !== job.brand" in wrap and "target.model !== job.model" in wrap, \
+        "身份核对被删掉了：外部增删之后这一刀会静默作用到别的记录上"
+    assert wrap.index("items.find(x => x.id === job.idx)") < wrap.index("method: 'DELETE'"), \
+        "复核必须排在发 DELETE 之前"

@@ -1147,7 +1147,10 @@ function parseItems(raw) {
     profit: safeFloat(r.sell) - safeFloat(r.cost),
     // 不带出 images 的话，行内缩略图与编辑弹窗里的已有图片预览都拿不到数据，
     // "删掉某张已有图片"这条路径在页面上根本走不到。
-    images: Array.isArray(r.images) ? r.images : (r.images ? [r.images] : []),
+    // 只保留字符串元素：写入侧的 400 管不到已经躺在账本里的历史脏数据，
+    // 而这里的输出直接进三处渲染（imgs[0].startsWith、img.startsWith）。
+    images: (Array.isArray(r.images) ? r.images : (r.images ? [r.images] : []))
+      .filter(s => typeof s === 'string'),
     get platform() { return detectPlatform(this.model); },
     get chipset() { return detectChipset(this.model); },
     get margin() { return this.cost > 0 ? (this.profit / this.cost * 100) : 0; }
@@ -1172,6 +1175,12 @@ let _ledgerStamp = '';
 // 全局 _ledgerStamp 是"最新读到的版本"，和"这份表单所依据的版本"是两件事，必须分开。
 let _formStamp = '';
 
+// 上一条的写盘收尾还在进行中（关窗后逐张删图、逐张传图，每写一次都把 _ledgerStamp 往前推）。
+// 置位期间不许重开表单、也不许发行内删除：那时锁到的版本必然会被后面的写推过期，
+// 用户只是慢了几秒，就得白白吃一次虚警 409 并看着刚填的输入被丢掉。
+let _ledgerBusy = false;
+const LEDGER_BUSY_MSG = '上一条还在写入，稍等再编辑';
+
 // 只有版本 token 时用的头：multipart 的 Content-Type 必须留给浏览器（boundary 是它拼的）。
 // 省略参数就回落到全局版本（行内删除、弹窗关闭之后的 /api/upload 走这条）；
 // 弹窗还开着的那次提交必须显式传 _formStamp，否则旧下标会配上新版本写到另一条记录上。
@@ -1189,19 +1198,14 @@ function writeHeaders(stamp) {
 // 处理方式用户已定：丢掉正在填的表单、重拉列表、告个错，不回填也不重试 ——
 // 旧下标在新账本里可能已经指向另一条记录，把刚填的值按回原位置等于请用户再确认一次错数据。
 // 返回 false 给调用方当"这次写没发生"的信号（saveItem / deleteItem 直接透传）。
-async function handleConflict() {
-  await fetchItems();
-  closeModal();
-  showToast('账本已在别处被改动，列表已重新载入，请重新编辑', 'err');
-  return false;
-}
+// 表单里与图片收尾走的是同一套策略，只有这一句话该说什么不同，所以三步实现只留一份。
+const CONFLICT_FORM_MSG = '账本已在别处被改动，列表已重新载入，请重新编辑';
+const CONFLICT_IMAGE_MSG = '账本已在别处被改动，本次图片改动已停止，列表已重新载入';
 
-// 和 handleConflict 同一套策略（重拉、关窗、报错，不重试也不回填），只是这句话用在
-// 表单已经关掉、剩下的是传图/删图收尾时更准确 —— 那时没有任何"正在编辑"可重新编辑。
-async function handleConflictAfterFormClosed() {
+async function handleConflict(msg = CONFLICT_FORM_MSG) {
   await fetchItems();
   closeModal();
-  showToast('账本已在别处被改动，本次图片改动已停止，列表已重新载入', 'err');
+  showToast(msg, 'err');
   return false;
 }
 
@@ -1683,6 +1687,8 @@ document.getElementById('search').addEventListener('input', e => {
 
 // ─── MODAL ──────────────────────────────
 async function openAddModal() {
+  // 同 openEditModal：收尾窗口期间不开新表单，否则新增也会白吃一次虚警 409。
+  if (_ledgerBusy) { showToast(LEDGER_BUSY_MSG, 'err'); return; }
   editId = -1;
   document.getElementById('modalTitle').textContent = '新增记录';
   document.getElementById('modalSubmit').textContent = '添加';
@@ -1721,6 +1727,9 @@ async function openAddModal() {
 }
 
 function openEditModal(idx) {
+  // 上一条还在收尾（逐张删图/传图）时不开新表单：此刻锁到的 _ledgerStamp
+  // 会被后面的写继续往前推，这份表单提交时必现一次虚警 409。
+  if (_ledgerBusy) { showToast(LEDGER_BUSY_MSG, 'err'); return; }
   editId = idx;
   const i = items.find(x => x.id === idx);
   if (!i) return;
@@ -1765,6 +1774,10 @@ function closeModal() {
 }
 
 async function confirmDelete(idx, label) {
+  // 收尾窗口期间不发行内删除：那条 DELETE 会把版本再往前推一格，
+  // 正在逐张写的删图/传图收尾下一脚就撞到自己刚写下的账本。
+  // 守卫放在 confirm() 之前，别先问一遍"确认删除？"再拒绝。
+  if (_ledgerBusy) { showToast(LEDGER_BUSY_MSG, 'err'); return; }
   if (confirm('确认删除 「' + label + '」？\n此操作不可撤销。')) {
     await deleteItem(idx);
   }
@@ -1785,49 +1798,71 @@ document.getElementById('modalSubmit').addEventListener('click', async () => {
   if (!record.brand || !record.model) { alert('品牌和型号不能为空'); return; }
   const written = await saveItem(record);
   if (!written) {
-    // 409：handleConflict 已经重拉列表、关掉表单并提示过。这里只顺手丢掉待传的图片，
-    // 别让它们在下一次提交时挂到一个已经换了人的下标上。
+    // 409：handleConflict 已经重拉列表、关掉表单并提示过。这里把两条队列都显式清掉，
+    // 不靠 closeModal() 的副作用 —— 那句清的是"关窗不该留下未提交的删除"，
+    // 和"这次写没发生所以要丢弃这一批"是两回事，将来谁挪走它这里就漏一条。
     window._pendingImages = [];
+    window._pendingImageRemovals = [];
     return;
   }
   const pending = window._pendingImages || [];
   window._pendingImages = [];
   const removals = window._pendingImageRemovals || [];
   window._pendingImageRemovals = [];
+  // 这次保存本身就可能改了品牌/型号，收尾要核对的是"我刚写进去的那份身份"；
+  // 拿打开弹窗时看到的旧值核对，会把自己这一次写盘误判成外部改动。
+  for (const job of removals) { job.brand = record.brand; job.model = record.model; }
   // 先收表单再收尾图片：写盘之后的新版本（和新条目的下标）只有弹窗关闭后的 loadPayload 才认，
   // 挂着提交前那份版本去传图/删图只会把自己刚写下的账本判成冲突。
   // dirtyWhileEditing 在这里清掉、重读改由下面 await：closeModal 那个没人等的 GET 和服务端
   // 多线程下乱序落地的响应，会把版本回拨成旧一代，让收尾的某一次写撞自己刚写下的账本。
   dirtyWhileEditing = false;
-  closeModal();
-  await syncFromDisk();
-  if (!pending.length && !removals.length) return;
-  // 待删的图在这里才真正写盘，用的是全局那份最新版本；每删一张都要重读一次，
-  // 否则下一张会拿着上一张写盘之前的版本去撞自己刚写下的账本。
-  for (const job of removals) {
-    const res = await fetch(API + '/' + job.idx + '/images/' + encodeURIComponent(job.filename),
-                            { method: 'DELETE', headers: ifMatchHeader() });
-    if (res.status === 409) {
-      await handleConflictAfterFormClosed();
-      return;
+  // 收尾窗口从这里开始置位：下面每写一次盘都要重读一次全局版本，期间重开的表单锁到的是
+  // "当时"那份、马上会被后面那几次写推过期，提交时必现虚警 409 并丢掉用户刚填的输入。
+  _ledgerBusy = true;
+  try {
+    closeModal();
+    await syncFromDisk();
+    if (!pending.length && !removals.length) return;
+    // 待删的图在这里才真正写盘，用的是全局那份最新版本；每删一张都要重读一次，
+    // 否则下一张会拿着上一张写盘之前的版本去撞自己刚写下的账本。
+    for (const job of removals) {
+      // 上面那次 fetchItems 可能已经吸收了外部改动，而 job.idx 仍是打开弹窗那一刻的原始下标。
+      // 外部增删过记录后它指向另一条：后端因为"文件名必须出现在该记录 images 里"不会删错文件，
+      // 但那是一次静默 no-op —— 客户端必须自己发现这一刀没砍中，不能继续往下删。
+      const target = items.find(x => x.id === job.idx);
+      if (!target || target.brand !== job.brand || target.model !== job.model
+          || !(target.images || []).includes(job.filename)) {
+        await handleConflict(CONFLICT_IMAGE_MSG);
+        return;
+      }
+      const res = await fetch(API + '/' + job.idx + '/images/' + encodeURIComponent(job.filename),
+                              { method: 'DELETE', headers: ifMatchHeader() });
+      if (res.status === 409) {
+        await handleConflict(CONFLICT_IMAGE_MSG);
+        return;
+      }
+      await fetchItems();
+    }
+    const newItemIdx = items.length - 1;
+    for (const file of pending) {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('record_idx', newItemIdx);
+      // multipart 的 Content-Type 交给浏览器（boundary 只有它知道），所以这里只带版本头。
+      const res = await fetch('/api/upload', { method: 'POST', body: fd, headers: ifMatchHeader() });
+      if (res.status === 409) {
+        await handleConflict(CONFLICT_IMAGE_MSG);
+        return;
+      }
+      // 同一段收尾窗口的同一个坑：每张图都会轮一次版本，不重读第二张就必然 409。
+      await fetchItems();
     }
     await fetchItems();
+  } finally {
+    // 收尾窗口结束了（含中途 409 早退和抛异常）：表单重新可编辑，锁到的版本才不会再被我们推过期。
+    _ledgerBusy = false;
   }
-  const newItemIdx = items.length - 1;
-  for (const file of pending) {
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('record_idx', newItemIdx);
-    // multipart 的 Content-Type 交给浏览器（boundary 只有它知道），所以这里只带版本头。
-    const res = await fetch('/api/upload', { method: 'POST', body: fd, headers: ifMatchHeader() });
-    if (res.status === 409) {
-      await handleConflictAfterFormClosed();
-      return;
-    }
-    // 同一段收尾窗口的同一个坑：每张图都会轮一次版本，不重读第二张就必然 409。
-    await fetchItems();
-  }
-  await fetchItems();
 });
 
 document.getElementById('modal').addEventListener('click', e => {
@@ -2153,7 +2188,11 @@ function removeExistingImage(imgIdx) {
   const node = document.querySelector('#imgPreviewList .existing-img[data-img-idx="' + imgIdx + '"]');
   if (node) node.remove();
   if (!window._pendingImageRemovals) window._pendingImageRemovals = [];
-  window._pendingImageRemovals.push({ idx: editId, filename: filename });
+  // 顺手记下这份身份快照：filename 是从这条记录的 images 里取的，brand/model 是它当时的样子。
+  // 收尾窗口每写一次盘都要重读列表，外部增删会让 idx 指向另一条记录，
+  // 发 DELETE 前拿这份快照复核归属，才不会把自己那一刀静默砍空（见 modalSubmit 的收尾循环）。
+  window._pendingImageRemovals.push({ idx: editId, filename: filename,
+                                      brand: item.brand, model: item.model });
 }
 
 // ─── IMAGE VIEWER ───────────────────────────

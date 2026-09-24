@@ -420,6 +420,21 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
                 return True
         return False
 
+    def reject_bad_images(self, body):
+        """images 出现了就必须是「每个元素都是字符串的数组」，否则 400、一条都不写。
+
+        52579b6 之后 images 会透传进行内缩略图 / 图片查看器 / 弹窗预览三处渲染，
+        非字符串元素让 imgs[0].startsWith 抛错、整表渲染崩；整值是字符串则让
+        handle_delete_image 的 list.remove 变成 str.remove 直接 500。渲染崩是落盘脏数据的后果，
+        只能拦在写入侧。省略这个键不算违规（新增按空数组、更新按"不动这一栏"）。
+        """
+        if 'images' in body:
+            value = body['images']
+            if not isinstance(value, list) or any(not isinstance(v, str) for v in value):
+                self.send_json({'ok': False, 'error': 'images must be an array of strings'}, 400)
+                return True
+        return False
+
     def handle_add_record(self):
         body = self.read_body()
         if not body:
@@ -430,11 +445,15 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         stamp = file_stamp()
         if self.reject_if_client_stale(stamp):
             return
-        if self.reject_bad_money(body):
-            return
         data = load_data()
+        # 复查排在请求体校验之前：视图已经过期时，400 的语义（"你请求写坏了，改好再发"）
+        # 会让前端留着这份旧表单，下一次写就作用在另一条记录上；只有 409 能纠正客户端。
         if file_stamp() != stamp:
             self.handle_write_conflict()
+            return
+        if self.reject_bad_money(body):
+            return
+        if self.reject_bad_images(body):
             return
         record = {
             'brand': body.get('brand', ''),
@@ -477,6 +496,8 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'ok': False, 'error': 'index out of range'}, 404)
             return
         if self.reject_bad_money(body):
+            return
+        if self.reject_bad_images(body):
             return
         r = data[idx]
         r['brand'] = body.get('brand', r.get('brand', ''))
