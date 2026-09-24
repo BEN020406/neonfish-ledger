@@ -371,17 +371,20 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         record = {
             'brand': body.get('brand', ''),
             'model': body.get('model', ''),
-            'cost': float(body.get('cost', 0)),
-            'sell': float(body.get('sell', 0)),
+            'cost': _to_float(body.get('cost', 0)),
+            'sell': _to_float(body.get('sell', 0)),
             'sn': body.get('sn', ''),
             'accessory': body.get('accessory', ''),
             'accessory_price': _norm_price(body.get('accessory_price', '')),
             'extra_price': _norm_price(body.get('extra_price', '')),
             'images': body.get('images', []),
         }
+        for key in ('source_order_id', 'order_date', 'item_title', 'order_paid'):
+            if key in body:
+                record[key] = body[key]
         data.append(record)
         save_data(data)
-        self.send_json({'ok': True, 'record': record})
+        self.send_json({'ok': True, 'record': record, 'index': len(data) - 1})
 
     def handle_update_record(self, idx):
         body = self.read_body()
@@ -389,24 +392,25 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'ok': False, 'error': 'empty body'}, 400)
             return
         data = load_data()
-        if 0 <= idx < len(data):
-            r = data[idx]
-            r['brand'] = body.get('brand', r.get('brand', ''))
-            r['model'] = body.get('model', r.get('model', ''))
-            r['cost'] = float(body.get('cost', r.get('cost', 0)))
-            r['sell'] = float(body.get('sell', r.get('sell', 0)))
-            r['sn'] = body.get('sn', r.get('sn', ''))
-            r['accessory'] = body.get('accessory', r.get('accessory', ''))
-            acc_price = body.get('accessory_price', r.get('accessory_price', ''))
-            r['accessory_price'] = _norm_price(acc_price)
-            extra = body.get('extra_price', r.get('extra_price', ''))
-            r['extra_price'] = _norm_price(extra)
-            if 'images' in body:
-                r['images'] = body['images']
-            save_data(data)
-            self.send_json({'ok': True, 'record': r})
-        else:
+        if not (0 <= idx < len(data)):
             self.send_json({'ok': False, 'error': 'index out of range'}, 404)
+            return
+        r = data[idx]
+        r['brand'] = body.get('brand', r.get('brand', ''))
+        r['model'] = body.get('model', r.get('model', ''))
+        r['cost'] = _to_float(body['cost']) if 'cost' in body else r.get('cost', 0)
+        r['sell'] = _to_float(body['sell']) if 'sell' in body else r.get('sell', 0)
+        r['sn'] = body.get('sn', r.get('sn', ''))
+        r['accessory'] = body.get('accessory', r.get('accessory', ''))
+        r['accessory_price'] = _norm_price(body.get('accessory_price', r.get('accessory_price', '')))
+        r['extra_price'] = _norm_price(body.get('extra_price', r.get('extra_price', '')))
+        for key in ('source_order_id', 'order_date', 'item_title', 'order_paid'):
+            if key in body:
+                r[key] = body[key]
+        if 'images' in body:
+            r['images'] = body['images']
+        save_data(data)
+        self.send_json({'ok': True, 'record': r})
 
     def handle_delete_record(self, idx):
         data = load_data()
