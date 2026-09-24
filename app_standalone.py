@@ -46,13 +46,42 @@ ORDER_CONTEXT_KEYS = ('source_order_id', 'order_date', 'item_title', 'order_paid
 
 # ─── Data helpers ───
 
+class WriteConflict(Exception):
+    """文件在本进程读取之后被别处改过，拒绝覆盖。"""
+
+
+def file_stamp():
+    """data.json 的粗略指纹，用来判断"我读到的那份还是现在这份吗"。
+
+    只取 (mtime_ns, size)，不是内容哈希：账本窗口（8765）和导入页（8766）都是
+    整读整写，规格 §12 风险 2 要的是"拒绝覆盖"这道底线，不是完整文件锁。
+    已知弱点，是刻意接受的：Windows 时钟粒度较粗，背靠背两次写盘可能落在同一个
+    mtime tick 里，所以只看 mtime 会漏；加上 size 后，"别人加了一条记录"这种
+    真实场景必然改体积，才拦得住。两条长度相同、时间相同、内容不同的外部写
+    仍然会漏 —— 真要精确，得把指纹换成文件内容哈希，或让前端把自己读到的
+    stamp 发回来（If-Match）。
+    """
+    st = os.stat(DATA_FILE) if os.path.exists(DATA_FILE) else None
+    if st is None:
+        return None
+    return (st.st_mtime_ns, st.st_size)
+
+
 def load_data():
     with open(DATA_FILE, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 
-def save_data(data):
+def save_data(data, stamp=None):
+    """整份写盘。带 stamp 时会先校验文件仍是调用方读到的那一份，不是就抛 WriteConflict。
+
+    检查必须排在 .bak 轮转之前：备份只有一代，被拒的写盘顺手把 .bak 冲掉就等于
+    在一次没生效的保存里销毁了唯一的救命数据。stamp=None 保持旧的无条件语义，
+    一次性脚本（回填）与 agent 工具走这条。
+    """
     payload = json.dumps(data, ensure_ascii=False, indent=2)
+    if stamp is not None and file_stamp() != stamp:
+        raise WriteConflict('data.json changed since it was read')
     if os.path.exists(DATA_FILE):
         shutil.copy2(DATA_FILE, DATA_FILE + '.bak')
     tmp = DATA_FILE + '.tmp'
@@ -124,6 +153,9 @@ def _agent_add_record(brand, model, cost, sell, sn="", extra_price="", accessory
         "images": [],
     }
     data.append(record)
+    # 故意不带 stamp：Agent 在一次 LLM 回合里可以连着调好几次 add_record，
+    # 每次都重新 load_data()，加上冲突保护会把"再记一条"这种正常连续录入直接判成 409。
+    # UI 侧的并发防护走 HTTP 那几个写端点，那里才有真正的两个进程互相覆盖风险。
     save_data(data)
     return record
 
@@ -390,6 +422,10 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             return
         if self.reject_bad_money(body):
             return
+        # stamp 先取再 load：守护覆盖的是"读 → 改 → 写"整段。
+        # 放在 load_data() 之后就漏掉"读完才指纹"这一瞬 —— 恰好在两次调用之间插进来的
+        # 外部写会被当成"我读到的一直没人动"，然后被整份覆盖掉。
+        stamp = file_stamp()
         data = load_data()
         record = {
             'brand': body.get('brand', ''),
@@ -406,7 +442,11 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             if key in body:
                 record[key] = body[key]
         data.append(record)
-        save_data(data)
+        try:
+            save_data(data, stamp)
+        except WriteConflict:
+            self.handle_write_conflict()
+            return
         self.send_json({'ok': True, 'record': record, 'index': len(data) - 1})
 
     def handle_update_record(self, idx):
@@ -414,6 +454,8 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         if not body:
             self.send_json({'ok': False, 'error': 'empty body'}, 400)
             return
+        # stamp 先取再 load，理由同 handle_add_record。
+        stamp = file_stamp()
         data = load_data()
         if not (0 <= idx < len(data)):
             self.send_json({'ok': False, 'error': 'index out of range'}, 404)
@@ -434,21 +476,33 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
                 r[key] = body[key]
         if 'images' in body:
             r['images'] = body['images']
-        save_data(data)
+        try:
+            save_data(data, stamp)
+        except WriteConflict:
+            self.handle_write_conflict()
+            return
         self.send_json({'ok': True, 'record': r})
 
     def handle_delete_record(self, idx):
+        # stamp 先取再 load，理由同 handle_add_record。
+        stamp = file_stamp()
         data = load_data()
-        if 0 <= idx < len(data):
-            deleted = data.pop(idx)
-            for img in deleted.get('images', []):
-                img_path = os.path.join(IMAGES_DIR, img)
-                if os.path.exists(img_path):
-                    os.remove(img_path)
-            save_data(data)
-            self.send_json({'ok': True, 'deleted': deleted})
-        else:
+        if not (0 <= idx < len(data)):
             self.send_json({'ok': False, 'error': 'index out of range'}, 404)
+            return
+        deleted = data.pop(idx)
+        try:
+            save_data(data, stamp)
+        except WriteConflict:
+            # 图片文件留到写盘成功之后再删：冲突时 data.json 仍然引用着它们，
+            # 先删文件就会在账本里留下一堆指向空气的缩略图。
+            self.handle_write_conflict()
+            return
+        for img in deleted.get('images', []):
+            img_path = os.path.join(IMAGES_DIR, img)
+            if os.path.exists(img_path):
+                os.remove(img_path)
+        self.send_json({'ok': True, 'deleted': deleted})
 
     # ─── Image handling ───
 
@@ -481,18 +535,27 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         if record_idx:
             try:
                 idx = int(record_idx['content'].decode('utf-8').strip())
+                # stamp 先取再 load，理由同 handle_add_record。
+                stamp = file_stamp()
                 data = load_data()
                 if 0 <= idx < len(data):
                     if 'images' not in data[idx]:
                         data[idx]['images'] = []
                     data[idx]['images'].append(filename)
-                    save_data(data)
+                    save_data(data, stamp)
             except (ValueError, KeyError):
                 pass
+            except WriteConflict:
+                # 图片文件此刻已经在盘上，只是没写进账本：留下的是一个没人引用的孤儿文件，
+                # 比"账本指向一张不存在的图"轻得多，所以照样回 409 让前端重拉列表。
+                self.handle_write_conflict()
+                return
 
         self.send_json({'ok': True, 'filename': filename, 'url': f'/api/images/{filename}'})
 
     def handle_delete_image(self, idx, filename):
+        # stamp 先取再 load，理由同 handle_add_record。
+        stamp = file_stamp()
         data = load_data()
         if 0 <= idx < len(data):
             r = data[idx]
@@ -500,7 +563,12 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             if filename in images:
                 images.remove(filename)
                 r['images'] = images
-                save_data(data)
+                try:
+                    save_data(data, stamp)
+                except WriteConflict:
+                    # 还没写成就返回：磁盘上的图仍然被账本引用着，状态是自洽的。
+                    self.handle_write_conflict()
+                    return
             img_path = os.path.join(IMAGES_DIR, filename)
             if os.path.exists(img_path):
                 os.remove(img_path)
@@ -569,6 +637,15 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'ok': False, 'error': str(e)}, 500)
 
     # ─── HTTP helpers ───
+
+    def handle_write_conflict(self):
+        """所有写端点共用的冲突回复：HTTP 409 + ok:false + 固定的 error 串。
+
+        契约的另一半在前端（见计划 Task 6 / Task 8）：收到 409 必须重新拉一次
+        /api/data 再让用户操作，不能继续拿着旧视图写盘。这里刻意不回任何数据，
+        判断只看 status，error 只是给人看的。
+        """
+        self.send_json({'ok': False, 'error': 'data.json changed elsewhere, reloaded'}, 409)
 
     def read_index(self, parts):
         """路径里的记录下标；不是整数就自己发出 400 并返回 None，让调用方跳过派发。"""
