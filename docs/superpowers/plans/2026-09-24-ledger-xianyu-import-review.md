@@ -438,6 +438,159 @@ git add app_standalone.py tests/test_ledger_api.py
 git commit -m "fix(ledger): detect concurrent data.json writes instead of clobbering"
 ```
 
+## Task 2b: 把冲突保护做到"页面是不是旧的"
+
+**为什么要这一步**：Task 2 的 `stamp = file_stamp()` 取在每个 handler 内部、紧贴自己的 `load_data()` 之前，所以只覆盖一个请求的几毫秒。真实事故是：账本窗口早上打开 → 中途从导入页写了账本 → 在停留于旧数据的窗口里改一条并保存。此时 handler 读到的是最新文件、指纹也是最新的，绝不冲突，于是照着旧页面早已错位的下标写下去。必须由客户端带版本才能发现"你看到的那份已经不是现在这份"。
+
+**决定（用户已确认）**：版本用 HTTP 头传递，不改任何响应体形状；冲突时**丢弃正在填的输入**、重拉列表、关掉表单，不自动回填、不自动重试。
+
+**Files:**
+- Modify: `app_standalone.py`（`file_stamp` 改成可放进 header 的不透明 token；`GET /api/data` 回 `X-Ledger-Stamp`；写 handler 优先用 `If-Match`）
+- Modify: `index.html`（记下 stamp，四个写入口带上 `If-Match`，409 时重拉并关表单）
+- Modify: `tests/test_ledger_api.py`
+
+- [ ] **Step 1: 先改测试（必须红）**
+
+追加到 `tests/test_ledger_api.py`。`api` fixture 来自 `tests/conftest.py`，若它的 `call` helper 不能自定义请求头，就给它加一个可选 `headers=None` 参数（保持向后兼容，现有调用不传即可）：
+
+```python
+def test_client_version_mismatch_returns_409(api):
+    call, load, path = api
+    status, resp, hdr = call("GET", "/api/data", with_headers=True)
+    assert status == 200 and hdr.get("X-Ledger-Stamp"), resp
+    stamp = hdr["X-Ledger-Stamp"]
+
+    # 外部先改一次，让客户端手里的版本过期
+    outside = load() + [{"brand": "外部", "model": "写入", "cost": 1, "sell": 1}]
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(outside, f, ensure_ascii=False)
+    before = open(path, "rb").read()
+
+    status, resp = call("PUT", "/api/data/0", {"cost": 700}, if_match=stamp)
+    assert status == 409, resp
+    assert resp.get("ok") is False
+    assert open(path, "rb").read() == before, "409 时一个字节都不能写"
+
+    # 带上现在的版本则正常成功
+    _, _, hdr2 = call("GET", "/api/data", with_headers=True)
+    status, resp = call("PUT", "/api/data/0", {"cost": 700}, if_match=hdr2["X-Ledger-Stamp"])
+    assert status == 200, resp
+    assert load()[0]["cost"] == 700.0
+
+
+def test_write_without_if_match_still_works(api):
+    """导入页与 agent 不带版本，不能被这个机制挡住；服务端内部指纹仍生效。"""
+    call, load, _ = api
+    status, resp = call("POST", "/api/data", {"brand": "希捷", "model": "2T", "cost": 380, "sell": 0})
+    assert status == 200, resp
+```
+
+`call` 需要扩展成：默认返回 `(status, json)`，传 `with_headers=True` 时返回 `(status, json, headers)`，传 `if_match=<stamp>` 时加 `If-Match` 头。向后兼容 —— 现有调用不传新参数即可。另外补一条断言到 `test_get_data_exposes_an_opaque_stamp` 这类命名下：token 必须只含 header 安全字符（`assert re.fullmatch(r'[0-9a-f-]+', stamp)`），避免哪天改成带空格或中文的格式悄悄坏掉。
+
+Run: `python -X utf8 -m pytest tests/test_ledger_api.py -v`
+Expected: `test_client_version_mismatch_returns_409` FAIL —— 没有 `X-Ledger-Stamp` 头（`hdr.get(...)` 取到 `None`），或 `TypeError: call() got an unexpected keyword argument`。
+
+- [ ] **Step 2: 后端 —— 版本 token 与 If-Match**
+
+`file_stamp()` 换成返回**能安全放进 header 的字符串**（顺带解决 mtime 时钟颗粒与"等长修改看不见"两个弱点）：
+
+```python
+def file_stamp():
+    """data.json 的版本 token：size + 内容哈希前 16 位，纯十六进制，可直接进 HTTP header。
+
+    账本 255 条约 49 KB，sha256 一次的代价远小于一毫秒，比 (mtime_ns, size) 可靠：
+    等长修改照样能发现，也不依赖文件系统时间精度。
+    """
+    if not os.path.exists(DATA_FILE):
+        return ''
+    with open(DATA_FILE, 'rb') as f:
+        blob = f.read()
+    return '%d-%s' % (len(blob), hashlib.sha256(blob).hexdigest()[:16])
+```
+
+`save_data(data, stamp=None)` 的比较逻辑不变（`stamp is not None and file_stamp() != stamp` → `WriteConflict`），但必须在文件顶部 `import hashlib`。
+
+`GET /api/data` 响应带头：
+
+```python
+        if path == '/api/data':
+            data = load_data()
+            self.send_header('X-Ledger-Stamp', file_stamp())  # 见 send_json 说明
+            self.send_json(data)
+```
+
+由于 `send_json` 自己发头，给它加一个可选 `extra_headers=None` 参数（在 `end_headers()` 前逐条 `send_header`），调用处传 `extra_headers={'X-Ledger-Stamp': file_stamp()}`。**响应体必须仍然是裸数组**，不要为了塞版本号改成对象 —— 前端 `parseItems(INITIAL)` 和计划里所有既有断言都按数组读。
+
+每个写 handler 在 `load_data()` 之前先做客户端版本比对（客户端没带就跳过，保持导入页与 agent 可用）：
+
+```python
+        expected = self.headers.get('If-Match')
+        if expected is not None and expected != file_stamp():
+            self.handle_write_conflict()
+            return
+```
+
+- [ ] **Step 3: 前端 —— 记下版本、带上、冲突就重来**
+
+先 `Read` `index.html` 里读数据的那几处（`fetchItems`、启动时的 `INITIAL` 装载、以及 `syncFromDisk`），确认它们如何取 JSON，再照下面模式改。新增一个模块级变量：
+
+```javascript
+let _ledgerStamp = '';
+```
+
+所有 GET 之后记下头（`fetch` 的 `res.headers.get` 只有同源可读，本项目同源）：
+
+```javascript
+    const s = res.headers.get('X-Ledger-Stamp');
+    if (s) _ledgerStamp = s;
+```
+
+四个写入口（`saveItem` 的 POST 与 PUT、`deleteItem`、图片 `upload`，以及 Task 8 的 `split_record`）统一带条件头：
+
+```javascript
+function writeHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (_ledgerStamp) h['If-Match'] = _ledgerStamp;
+  return h;
+}
+```
+
+冲突处理集中成一个函数，**丢弃输入、重拉、关表单**（用户已选定，不回填）：
+
+```javascript
+async function handleConflict() {
+  await fetchItems();
+  closeModal();
+  closeSplitModal && closeSplitModal();
+  showToast('账本已在别处被改动，列表已重新载入，请重新编辑');
+  return true;
+}
+```
+
+每个写入口把 `await fetch(...)` 换成先取响应再判断，例如 `saveItem`：
+
+```javascript
+  const res = await fetch(API + '/' + editId, { method: 'PUT', headers: writeHeaders(), body: JSON.stringify(record) });
+  if (res.status === 409) { await handleConflict(); return; }
+  await fetchItems();
+```
+
+判分支只看 `res.status === 409`，**不要**匹配 error 文本。`deleteItem` 同理（删除遇冲突也重拉再提示，不要静默失败）。
+
+- [ ] **Step 4: 全套绿灯**
+
+Run: `python -X utf8 -m pytest tests -v`
+Expected: 全绿，用例数比 Task 2 之后多 2 条。任何一条 409 分支测试都必须是因为版本不匹配而失败，而不是因为异常崩掉。
+
+- [ ] **Step 5: 提交**
+
+```bash
+git add app_standalone.py index.html tests/test_ledger_api.py tests/conftest.py
+git commit -m "fix(ledger): carry the ledger version on writes so a stale view cannot clobber"
+```
+
+---
+
 ## Task 3: `POST /api/split_record` —— 一次写盘完成拆单
 
 **Files:**
