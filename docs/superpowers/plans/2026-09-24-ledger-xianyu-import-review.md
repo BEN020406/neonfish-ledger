@@ -110,8 +110,8 @@ def api(monkeypatch, tmp_path):
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:
                 return resp.status, json.loads(resp.read().decode("utf-8"))
-            except urllib.error.HTTPError as exc:
-                return exc.code, json.loads(exc.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            return exc.code, json.loads(exc.read().decode("utf-8"))
         except (urllib.error.URLError, ConnectionResetError) as exc:
             raise AssertionError(
                 "backend aborted the request (likely an unhandled exception): %r" % (exc,)
@@ -151,7 +151,10 @@ def test_manual_add_has_no_order_keys(api):
 - [ ] **Step 2: 跑测试，确认失败信息是"键不存在"而不是崩溃**
 
 Run: `python -X utf8 -m pytest tests/test_ledger_api.py -v`
-Expected: `test_add_record_persists_order_context` FAIL —— 报 `KeyError: 'index'`（`handle_add_record` 现在不回传索引），或断言 `[None, None, None, None] != [...]`。`test_manual_add_has_no_order_keys` 此时应当 PASS —— 它是防回归护栏，不是本次要修的东西。
+Expected: **2 failed**（不是 1 failed）：
+
+- `test_add_record_persists_order_context` 失败原因是 `backend aborted the request ... RemoteDisconnected` —— 旧的 `handle_add_record` 也在 `'sell': float(body.get('sell', 0))` 上踩 `float('')`，说明新增路径同样带这个崩溃，Step 3 的 `_to_float` 顺手修掉了它。
+- `test_manual_add_has_no_order_keys` 失败原因是 `KeyError: 'index'`。它也解引用 `resp["index"]`，所以在 Step 3 之前不可能通过 —— 别把这条预期写成"应当 PASS"。
 
 - [ ] **Step 3: 实现 `handle_add_record` 的白名单与索引回传**
 
@@ -212,9 +215,9 @@ def test_update_partial_body_keeps_order_context_and_survives_empty_sell(api):
 Run: `python -X utf8 -m pytest tests/test_ledger_api.py::test_update_partial_body_keeps_order_context_and_survives_empty_sell -v`
 Expected: FAIL，报错文本含 `backend aborted the request (likely an unhandled exception)`；服务控制台出现 `ValueError: could not convert string to float: ''`（`app_standalone.py:397`）。
 
-- [ ] **Step 7: 用 `_to_float` 改写 `handle_update_record`**
+- [ ] **Step 7: 改写 `handle_update_record`（省略即保留，显式才转数值）**
 
-把 `app_standalone.py:386-409` 整体替换（`_to_float` 已存在于 `app_standalone.py:60-66`，对 `''`/`None` 返回默认值，不会崩）：
+`_to_float` 已存在于 `app_standalone.py:60-66`（对 `''`/`None` 返回默认值，不会崩）。但**不能**写成 `_to_float(body.get('sell', r.get('sell', 0)))` —— 那样会把"请求没带 sell"也拿去强制转换，将库里的空串 `''` 变成 `0.0`。空串是"这条还没定价"的唯一标记：实测 255 条里 `sell` 为空的恰好就是那 18 条 `source_order_id` 记录，且没有任何记录使用数值 `0`，一旦塌成 `0.0` 就无法区分回来，金色「待补售价」胶囊会立刻失去目标。所以只有请求显式带键时才转换：
 
 ```python
     def handle_update_record(self, idx):
@@ -229,8 +232,8 @@ Expected: FAIL，报错文本含 `backend aborted the request (likely an unhandl
         r = data[idx]
         r['brand'] = body.get('brand', r.get('brand', ''))
         r['model'] = body.get('model', r.get('model', ''))
-        r['cost'] = _to_float(body.get('cost', r.get('cost', 0)))
-        r['sell'] = _to_float(body.get('sell', r.get('sell', 0)))
+        r['cost'] = _to_float(body['cost']) if 'cost' in body else r.get('cost', 0)
+        r['sell'] = _to_float(body['sell']) if 'sell' in body else r.get('sell', 0)
         r['sn'] = body.get('sn', r.get('sn', ''))
         r['accessory'] = body.get('accessory', r.get('accessory', ''))
         r['accessory_price'] = _norm_price(body.get('accessory_price', r.get('accessory_price', '')))
@@ -243,6 +246,8 @@ Expected: FAIL，报错文本含 `backend aborted the request (likely an unhandl
         save_data(data)
         self.send_json({'ok': True, 'record': r})
 ```
+
+行为对照（实现后实测）：省略 `sell` → 保持 `''`；显式 `sell: 1200` → `1200.0`；显式 `sell: ""` → `0.0`（前端提交时 `parseFloat(x) || 0` 就是 0，符合直觉）。
 
 - [ ] **Step 8: 跑全套确认绿灯**
 
@@ -603,6 +608,8 @@ part and leave the ledger half-split if a later request failed."
 - Create: `tests/test_review_import.py`
 
 实测事实：核对页手里有 `order_date` / `item_title` / `price`（`xianyu_review.html:590`、`:596` 在渲染它们），但 POST 只发 `order_id / brand / model / cost`（`:863-866`）。所以改的是载荷，不是后端拼装。
+
+> **Task 1 遗留给本任务的决定**：`handle_add_record` 现在把显式提交的 `sell: ""` 落成 `0.0`，而 `handle_update_record` 是"省略即保留 `''`"。今天无害 —— 导入器直接写文件、不经过 HTTP，且 `0.0` 与 `''` 在前端 `!r.sell` 判断里都算待补。但如果将来把导入改成走 `POST /api/data`，"待补售价"的标记语义会在入库那一刻分叉。届时要么让 add 也保留 `''`，要么把"未定价"统一改成一个显式的 `null` 约定，别同时留两套。
 
 - [ ] **Step 1: 写失败测试**
 

@@ -34,7 +34,7 @@
 | `BRAND_STYLES`（`index.html:1301-1309`）只有 7 个键，是**配色表不是品牌库**；`brandIcon`（`1310-1321`）用 `brand[0]` 兜底，任意品牌名都能渲染 | 本轮实测读取 |
 | `buildBrands()` 按 `brand` 原样字符串分组，无归一化、无别名表 | 本轮实测读取 |
 | `app_standalone.py` 的路由只有 `/`、`/api/chat`、`/api/data`、`/api/smart-parse`、`/api/upload`、`/api/data/<idx>`、`/api/images/<f>`；**`/api/prices`、`/api/templates` 只存在于 `server.py:242` / `:250`** | 本轮实测读取路由表；桌面版的价格参考与模板下拉因此恒为空 |
-| 18 条闲鱼记录的 `sell` 是空串，而 `handle_update_record` 用 `float(...)` 取值，省略 `sell` 的 PUT 会抛 `ValueError` 且 `do_PUT` 无捕获 | `app_standalone.py:394`，实测 `data.json` 19 条 `sell` 为空 |
+| 18 条闲鱼记录的 `sell` 是空串，而 `handle_update_record` 用 `float(...)` 取值，省略 `sell` 的 PUT 会抛 `ValueError` 且 `do_PUT` 无捕获 | 实测 `data.json`：`sell` 为空的记录集合 == `source_order_id` 的记录集合（各 18 条），且无一条使用数值 `0` |
 | `togglePending`（`index.html:1291-1298`）会强制切到 `models`，tab 监听（`1593`）切走即清零 `pendingOnly` | 本轮实测读取；跨 tab 的胶囊交集语义不成立 |
 | 编辑链路三处存量缺陷已随 `de4789f` 修复：预填按 `id` 反查、`accessory`/`accessory_price`/`sn2` 已透传、`save_data` 与 `save_ledger` 改临时文件 + `os.replace` | `git show de4789f`；临时目录实测注入序列化失败后 `data.json` 字节未变 |
 
@@ -50,7 +50,7 @@
 
 ### 3.2 呈现形态
 
-- **1. 新增第 5 个 tab「闲鱼订单」，按订单日期分组（采用）** — 与用户熟悉的核对页同构，能容纳原标题、金额对账、拆单操作。
+- **1. 新增第 5 个 tab「闲鱼订单」，按订单分组（采用）** — 一组 = 一笔 `source_order_id`，日期只用于组头显示与排序；与用户熟悉的核对页同构，能容纳原标题、金额对账、拆单操作。
 - 2. 只在「型号明细」加筛选胶囊（否决为主形态）— 放不下原标题上下文，拆单没有落脚点。
 - 3. 订单详情抽屉（否决）— 拆单要在弹窗里再套弹窗，交互绕。
 
@@ -89,7 +89,7 @@ for k in ("source_order_id", "order_date", "item_title", "order_paid"):
 
 两个必须一起处理的既有约束（均已实测）：
 
-- `handle_update_record` 用 `float(body.get('sell', r.get('sell', 0)))` 取值，而他 18 条闲鱼记录的 `sell` 是空串。任何省略 `sell` 的 PUT 都会走 `float('')` 抛 `ValueError`，`do_PUT` 没有捕获 → 整次写入不落盘、连接断开。新增字段的写入路径必须显式带上 `sell`，或把该处取值改成已有的 `_norm_price`。
+- `handle_update_record` 用 `float(body.get('sell', r.get('sell', 0)))` 取值，而他 18 条闲鱼记录的 `sell` 是空串。任何省略 `sell` 的 PUT 都会走 `float('')` 抛 `ValueError`，`do_PUT` 没有捕获 → 整次写入不落盘、连接断开。修法必须是**只在请求显式带该键时才转数值、省略即原样保留**：`''` 是"还没定价"的唯一标记（实测与 `source_order_id` 集合完全重合、无人使用数值 `0`），所以既不能"显式带上 sell"（会把 `''` 塌成 `0.0`），也不能改用 `_norm_price`（它对 `0` 返回 `''`）。
 - 记录没有 id，前端一律按 `data.json` 数组下标寻址，任何 append 都会改变后续下标。`split_record` 与 `add_record` 的响应必须回传**原始数组下标**，前端不得再用 `items.length - 1` 猜（`index.html:1711` 现在就是这么猜的，拆单必须避开这条路）。
 
 ### 5.2 新增 `POST /api/split_record`
