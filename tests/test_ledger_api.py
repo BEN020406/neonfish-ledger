@@ -794,3 +794,166 @@ def test_split_reuses_first_stamp_when_external_delete_shifts_index(
     assert _split_files_snapshot(path) == seen["files"]
     assert load() == records[1:]
     assert not Path(path + ".tmp").exists()
+
+
+# ─── Task 4: 旧 CRUD 也复用同一份版本基准 ───
+
+RACE_CASES = [
+    ("POST", "/api/data", {"brand": "七彩虹", "model": "B760M", "cost": 1, "sell": 1}),
+    ("PUT", "/api/data/0", {"cost": 601}),
+    ("DELETE", "/api/data/0", None),
+    ("DELETE", "/api/data/0/images/keep.jpg", None),
+]
+
+
+def _prepare_race_files(api):
+    """给旧 CRUD 竞态测试预置一张被账本引用的图与一份内容可辨认的 .bak，返回 data.json 的 Path。
+
+    .bak 要先立起来、且字节和 data.json 不同，"冲突没把唯一那代备份轮掉"才是看得见的；
+    逐文件字节比对直接复用 Task 3 的 _split_files_snapshot（它本身就与拆分无关）。
+    """
+    import app_standalone as m
+
+    _, _, path = api
+    data_file = Path(path)
+    assert m.DATA_FILE == path
+    images = Path(m.IMAGES_DIR)
+    assert images.parent == data_file.parent
+    images.mkdir(exist_ok=True)
+    (images / "keep.jpg").write_bytes(b"\xff\xd8keep-image")
+    Path(path + ".bak").write_bytes(b"previous backup generation\r\n")
+    return data_file
+
+
+def _watch_stamps(m, monkeypatch, data_file, records, seen, path):
+    """在第一次真实取版本之后删掉临时账本首条：外部写插在客户端校验与 load 之间。
+
+    不 sleep、不伪造 token —— 三个采样点谁先谁后由被包装的真实调用决定，测的是顺序而不是时长。
+    """
+    real_stamp, real_load, real_save = m.file_stamp, m.load_data, m.save_data
+    samples, loaded_versions, saved_stamps = [], [], []
+
+    def delete_after_first_sample():
+        stamp = real_stamp()
+        samples.append(stamp)
+        if len(samples) == 1:
+            data_file.write_text(json.dumps(records[1:], ensure_ascii=False), encoding="utf-8")
+            seen["files"] = _split_files_snapshot(path)
+        return stamp
+
+    def observed_load():
+        data = real_load()
+        loaded_versions.append(json.loads(json.dumps(data)))
+        return data
+
+    def observed_save(data, stamp=None):
+        saved_stamps.append(stamp)
+        return real_save(data, stamp)
+
+    monkeypatch.setattr(m, "file_stamp", delete_after_first_sample)
+    monkeypatch.setattr(m, "load_data", observed_load)
+    monkeypatch.setattr(m, "save_data", observed_save)
+    return real_stamp, samples, loaded_versions, saved_stamps
+
+
+@pytest.mark.parametrize("with_token", [True, False])
+@pytest.mark.parametrize("method,route,payload", RACE_CASES)
+def test_legacy_crud_reuses_first_stamp_when_external_delete_shifts_index(
+        api, monkeypatch, method, route, payload, with_token):
+    """客户端的 If-Match 必须校验在"我读到的那一份"上，而不是校验在移位前的版本、写回移位后的账本。
+
+    with_token=False 同样要 409：load 后的复查防的是"读到的和要写回的不是同一份"，
+    跟客户端有没有带版本无关，所以它对不带 If-Match 的导入页/agent 一样生效。
+    """
+    import app_standalone as m
+
+    call, load, path = api
+    data_file = _prepare_race_files(api)
+    first, second = load()
+    # 首条带图：DELETE /api/data/0/images/... 那一路才真会走到写盘和删文件。
+    records = [dict(first, images=["keep.jpg"]), second]
+    data_file.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+    status, _, headers = call("GET", "/api/data", with_headers=True)
+    assert status == 200
+    token = headers["X-Ledger-Stamp"]
+
+    seen = {}
+    real_stamp, samples, loaded_versions, saved_stamps = _watch_stamps(
+        m, monkeypatch, data_file, records, seen, path)
+    status, resp = call(method, route, payload, if_match=token if with_token else None)
+    assert status == 409, (method, route, resp)
+    assert resp == {"ok": False, "error": CONFLICT_ERROR}
+    assert loaded_versions == [records[1:]], "外部删除确实落在客户端校验与 load 之间，旧代码从这里读出的是移位后的账本"
+    assert samples[0] == token and real_stamp() != token
+    assert all(stamp == token for stamp in saved_stamps), "允许提前拒绝，但不能重定保存基准"
+    assert _split_files_snapshot(path) == seen["files"], "冲突之后数据、备份或图片被改过"
+    assert load() == records[1:]
+    assert not Path(path + ".tmp").exists()
+
+
+def test_upload_reuses_first_stamp_when_external_delete_shifts_index(api, monkeypatch):
+    """/api/upload 是第五个写盘点：同一份基准要贯穿 If-Match 校验、load 与 save_data。"""
+    import io
+
+    import app_standalone as m
+
+    call, load, path = api
+    data_file = _prepare_race_files(api)
+    first, second = load()
+    records = [dict(first, images=["keep.jpg"]), second]
+    data_file.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+    token = call("GET", "/api/data", with_headers=True)[2]["X-Ledger-Stamp"]
+
+    boundary = "ledgeraceboundary"
+    raw = (
+        ('--%s\r\nContent-Disposition: form-data; name="file"; filename="shot.jpg"\r\n'
+         'Content-Type: image/jpeg\r\n\r\n' % boundary).encode("utf-8")
+        + b"\xff\xd8fakedata\r\n"
+        + ('--%s\r\nContent-Disposition: form-data; name="record_idx"\r\n\r\n0\r\n' % boundary).encode("utf-8")
+        + ('--%s--\r\n' % boundary).encode("utf-8")
+    )
+    handler = m.APIHandler.__new__(m.APIHandler)
+    handler.headers = {
+        "Content-Type": "multipart/form-data; boundary=%s" % boundary,
+        "Content-Length": str(len(raw)),
+        "If-Match": token,
+    }
+    handler.rfile = io.BytesIO(raw)
+    replies = []
+    handler.send_json = lambda payload, status=200: replies.append((status, payload))
+
+    seen = {}
+    real_stamp, samples, loaded_versions, saved_stamps = _watch_stamps(
+        m, monkeypatch, data_file, records, seen, path)
+    handler.handle_upload()
+
+    assert replies == [(409, {"ok": False, "error": CONFLICT_ERROR})], replies
+    assert loaded_versions == [records[1:]]
+    assert samples[0] == token and real_stamp() != token
+    assert all(stamp == token for stamp in saved_stamps), "允许提前拒绝，但不能重定保存基准"
+    assert load() == records[1:], "上传写盘被拒后仍然改了账本"
+    after = _split_files_snapshot(path)
+    assert after["data.json"] == seen["files"]["data.json"]
+    assert after["data.json.bak"] == seen["files"]["data.json.bak"], "冲突写盘把唯一的备份世代轮掉了"
+    assert not os.path.exists(path + ".tmp"), "被拒的写盘不该留下半成品"
+    # 图已经落盘、账本没引用它：留下的是孤儿文件，这是 handle_upload 里写明接受的取舍；
+    # 但原本被账本引用的那张必须一个字都没动。
+    extra = set(after) - set(seen["files"])
+    assert not set(seen["files"]) - set(after), "被拒的上传把账本还引用着的图删了"
+    assert len(extra) == 1 and next(iter(extra)).startswith("images"), extra
+
+
+def test_no_write_endpoint_re_samples_the_version_after_its_client_check():
+    """不带参数的 reject_if_client_stale() 就是"即时采样"：它放过的那个版本，和 handler
+    随后自己 file_stamp() 采到的那份之间可以插进一次外部写，客户端的 If-Match 于是白校验一次。
+
+    和新写盘端点忘传 stamp 的那道静态守卫互补：这里钉的是"校验与保存同一份基准"。
+    """
+    import inspect
+    import re
+
+    import app_standalone as m
+
+    src = inspect.getsource(m.APIHandler)
+    assert "reject_if_client_stale()" not in src, "有写盘端点又用即时采样校验客户端版本了"
+    assert re.search(r"def reject_if_client_stale\(self, stamp=None\)", src), "签名变了，调用点的约定要一起复核"

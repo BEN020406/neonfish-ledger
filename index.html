@@ -1165,14 +1165,21 @@ let lastPayload = null;
 // 也就是这几次写没有旧视图保护，仅此一次，不做猜测性补版本。
 let _ledgerStamp = '';
 
+// 表单自己那份版本：弹窗打开时锁住，关闭/提交完成时清掉。
+// 全局 _ledgerStamp 是"最新读到的版本"，和"这份表单所依据的版本"是两件事，必须分开。
+let _formStamp = '';
+
 // 只有版本 token 时用的头：multipart 的 Content-Type 必须留给浏览器（boundary 是它拼的）。
-function ifMatchHeader() {
-  return _ledgerStamp ? { 'If-Match': _ledgerStamp } : {};
+// 省略参数就回落到全局版本（行内删除、弹窗关闭之后的 /api/upload 走这条）；
+// 弹窗还开着的那次提交必须显式传 _formStamp，否则旧下标会配上新版本写到另一条记录上。
+function ifMatchHeader(stamp) {
+  const token = stamp === undefined ? _ledgerStamp : stamp;
+  return token ? { 'If-Match': token } : {};
 }
 
 // JSON 写入口统一的头。
-function writeHeaders() {
-  return Object.assign({ 'Content-Type': 'application/json' }, ifMatchHeader());
+function writeHeaders(stamp) {
+  return Object.assign({ 'Content-Type': 'application/json' }, ifMatchHeader(stamp));
 }
 
 // 409 只按 res.status 判，绝不拿 error 文案当分支（文案给人看，不是契约）。
@@ -1191,6 +1198,13 @@ async function loadPayload() {
   const res = await fetch(API);
   const text = await res.text();
   const s = res.headers.get('X-Ledger-Stamp');
+  // 发起前那一刻弹窗是关的，不代表现在还是关的：这一路 GET 完全可能是在用户点开编辑之后才回来的。
+  // 那时既不能换 items 也不能认这份新版本，否则表单里的旧下标会配上刚拉回来的新账本，
+  // 提交时 If-Match 恰好等于服务端当前版本，守卫通过、钱写进别人那条。同步推迟到 closeModal。
+  if (document.getElementById('modal').classList.contains('active')) {
+    dirtyWhileEditing = true;
+    return null;
+  }
   if (s) _ledgerStamp = s;   // 同源才读得到；这份数据从现在起就是客户端认的版本
   if (text === lastPayload) return null;
   const parsed = parseItems(JSON.parse(text));
@@ -1239,11 +1253,13 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) sync
 let editId = -1;
 
 async function saveItem(record) {
+  // 带着表单自己那份版本写盘。不变量：弹窗开着的时候 loadPayload 拒绝换 items，
+  // 所以 editId 从打开到提交一直指向同一条记录，不需要再拿字段核对一遍身份。
   if (editId >= 0) {
-    const res = await fetch(API + '/' + editId, { method: 'PUT', headers: writeHeaders(), body: JSON.stringify(record) });
+    const res = await fetch(API + '/' + editId, { method: 'PUT', headers: writeHeaders(_formStamp), body: JSON.stringify(record) });
     if (res.status === 409) return await handleConflict();
   } else {
-    const res = await fetch(API, { method: 'POST', headers: writeHeaders(), body: JSON.stringify(record) });
+    const res = await fetch(API, { method: 'POST', headers: writeHeaders(_formStamp), body: JSON.stringify(record) });
     if (res.status === 409) return await handleConflict();
   }
   await fetchItems();
@@ -1685,6 +1701,9 @@ async function openAddModal() {
     sel.innerHTML += `<option value="${t.brand}|||${t.model}">${t.model} · ${t.brand} (${t.count}笔)</option>`;
   }
   document.getElementById('modal').classList.add('active');
+  // 在弹窗已经 active 之后才取锁：此后任何在途 GET 都会被 loadPayload 的弹窗守卫挡下，
+  // 不会出现"表单开着、客户端认的版本偷偷变新"。
+  _formStamp = _ledgerStamp;
   document.getElementById('fBrand').focus();
 }
 
@@ -1714,12 +1733,14 @@ function openEditModal(idx) {
     previewList.innerHTML += `<div style="position:relative;display:inline-block"><img src="${src}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border)"><button onclick="removeExistingImage(${idx})" style="position:absolute;top:-6px;right:-6px;background:var(--red);border:none;color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;line-height:1">×</button></div>`;
   });
   document.getElementById('modal').classList.add('active');
+  _formStamp = _ledgerStamp;
   document.getElementById('fBrand').focus();
 }
 
 function closeModal() {
   document.getElementById('modal').classList.remove('active');
   editId = -1;
+  _formStamp = '';
   if (dirtyWhileEditing) {
     dirtyWhileEditing = false;
     syncFromDisk();
@@ -1752,24 +1773,26 @@ document.getElementById('modalSubmit').addEventListener('click', async () => {
     window._pendingImages = [];
     return;
   }
-  if (window._pendingImages && window._pendingImages.length > 0) {
-    const newItemIdx = items.length - 1;
-    for (const file of window._pendingImages) {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('record_idx', newItemIdx);
-      // multipart 的 Content-Type 交给浏览器（boundary 只有它知道），所以这里只带版本头。
-      const res = await fetch('/api/upload', { method: 'POST', body: fd, headers: ifMatchHeader() });
-      if (res.status === 409) {
-        await handleConflict();
-        window._pendingImages = [];
-        return;
-      }
-    }
-    await fetchItems();
-  }
+  const pending = window._pendingImages || [];
   window._pendingImages = [];
+  // 先收表单再传图：写盘之后的新版本（和新条目的下标）只有弹窗关闭后的 loadPayload 才认，
+  // 挂着提交前那份版本去传图只会把自己刚写下的账本判成冲突。
   closeModal();
+  if (!pending.length) return;
+  await fetchItems();
+  const newItemIdx = items.length - 1;
+  for (const file of pending) {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('record_idx', newItemIdx);
+    // multipart 的 Content-Type 交给浏览器（boundary 只有它知道），所以这里只带版本头。
+    const res = await fetch('/api/upload', { method: 'POST', body: fd, headers: ifMatchHeader() });
+    if (res.status === 409) {
+      await handleConflict();
+      return;
+    }
+  }
+  await fetchItems();
 });
 
 document.getElementById('modal').addEventListener('click', e => {

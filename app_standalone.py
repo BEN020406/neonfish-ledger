@@ -425,16 +425,17 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         if not body:
             self.send_json({'ok': False, 'error': 'empty body'}, 400)
             return
-        # 客户端版本先查：旧页面连一次 load 都不该换来（没带 If-Match 时直接放行）。
-        if self.reject_if_client_stale():
+        # 一份基准贯穿"校验客户端 → load → 复查 → 写盘"：中间任何一次重新采样都可能采到
+        # 外部写之后的新账本，那时客户端的 If-Match 已经校验在旧版本上，守卫就白过一次。
+        stamp = file_stamp()
+        if self.reject_if_client_stale(stamp):
             return
         if self.reject_bad_money(body):
             return
-        # stamp 先取再 load：守护覆盖的是"读 → 改 → 写"整段。
-        # 放在 load_data() 之后就漏掉"读完才指纹"这一瞬 —— 恰好在两次调用之间插进来的
-        # 外部写会被当成"我读到的一直没人动"，然后被整份覆盖掉。
-        stamp = file_stamp()
         data = load_data()
+        if file_stamp() != stamp:
+            self.handle_write_conflict()
+            return
         record = {
             'brand': body.get('brand', ''),
             'model': body.get('model', ''),
@@ -462,12 +463,16 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         if not body:
             self.send_json({'ok': False, 'error': 'empty body'}, 400)
             return
-        # 客户端版本先查，理由同 handle_add_record：这就是"停在旧数据的窗口保存"那一次事故。
-        if self.reject_if_client_stale():
-            return
-        # stamp 先取再 load，理由同 handle_add_record。
+        # 一份基准贯穿校验与写盘，理由同 handle_add_record；下标是客户端给的，
+        # 采到新版本再按旧下标动盘，改的就是另一条记录。
         stamp = file_stamp()
+        if self.reject_if_client_stale(stamp):
+            return
         data = load_data()
+        # 复查排在下标校验之前：外部改动必须优先回 409，而不是被降级成 404/400。
+        if file_stamp() != stamp:
+            self.handle_write_conflict()
+            return
         if not (0 <= idx < len(data)):
             self.send_json({'ok': False, 'error': 'index out of range'}, 404)
             return
@@ -575,13 +580,15 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         self.send_json({'ok': True, 'indices': indices, 'order_paid': record.get('order_paid', '')})
 
     def handle_delete_record(self, idx):
-        # 先查客户端版本：旧页面手里的下标可能已经指向另一条记录，
-        # 让它走到下面的 404/删除分支都等于拿错位下标动账本。
-        if self.reject_if_client_stale():
-            return
-        # stamp 先取再 load，理由同 handle_add_record。
+        # 一份基准贯穿校验与写盘，理由同 handle_add_record：删除只认下标，
+        # 校验通过后再采一次版本，等于允许"按旧下标删新账本里的另一条"。
         stamp = file_stamp()
+        if self.reject_if_client_stale(stamp):
+            return
         data = load_data()
+        if file_stamp() != stamp:
+            self.handle_write_conflict()
+            return
         if not (0 <= idx < len(data)):
             self.send_json({'ok': False, 'error': 'index out of range'}, 404)
             return
@@ -618,7 +625,8 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         # 版本先查再落图：请求体已经读完（不读会把连接留成半截），
         # 所以这里判完就能连图片文件一起省掉，连孤儿文件都不产生。
         # 上传走 multipart，Content-Type 不能动，If-Match 照样是普通请求头。
-        if self.reject_if_client_stale():
+        stamp = file_stamp()
+        if self.reject_if_client_stale(stamp):
             return
 
         file_info = parsed['file']
@@ -636,9 +644,12 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         if record_idx:
             try:
                 idx = int(record_idx['content'].decode('utf-8').strip())
-                # stamp 先取再 load，理由同 handle_add_record。
-                stamp = file_stamp()
                 data = load_data()
+                # 落图那几毫秒里外部完全可能改过账本：仍按请求开头那份基准判，
+                # 否则客户端的旧下标会挂到新账本的另一条记录上。
+                if file_stamp() != stamp:
+                    self.handle_write_conflict()
+                    return
                 if 0 <= idx < len(data):
                     if 'images' not in data[idx]:
                         data[idx]['images'] = []
@@ -655,12 +666,15 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         self.send_json({'ok': True, 'filename': filename, 'url': f'/api/images/{filename}'})
 
     def handle_delete_image(self, idx, filename):
-        # 客户端版本先查：旧下标在新账本里可能已经是另一条记录的图。
-        if self.reject_if_client_stale():
-            return
-        # stamp 先取再 load，理由同 handle_add_record。
+        # 一份基准贯穿校验与写盘，理由同 handle_add_record：旧下标在新账本里
+        # 可能已经是另一条记录的图，先采版本再复查才能保住那条图。
         stamp = file_stamp()
+        if self.reject_if_client_stale(stamp):
+            return
         data = load_data()
+        if file_stamp() != stamp:
+            self.handle_write_conflict()
+            return
         if 0 <= idx < len(data):
             r = data[idx]
             images = r.get('images', [])
