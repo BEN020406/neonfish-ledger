@@ -1,10 +1,12 @@
 """后端写入路径的测试：Task 1 是订单上下文 round-trip、空 sell 的不对称、坏输入的显式拒绝；
-Task 2 加上写盘冲突检测（两个进程整读整写 data.json 时，后写的必须被拒绝而不是抹掉前者）。
+Task 2 加上写盘冲突检测（两个进程整读整写 data.json 时，后写的必须被拒绝而不是抹掉前者）；
+Task 2b 把冲突检测做到"页面是不是旧的"（客户端带着读到的版本写盘，版本不符就 409）。
 
 fixture（api / SEED / 沙盒兜底）在 tests/conftest.py，后面 10 个测试文件共用。
 """
 import json
 import os
+import re
 
 import pytest
 
@@ -198,9 +200,9 @@ def test_save_data_refuses_to_clobber_external_writer(api):
 def _race_save(m, load, path, seen):
     """包住真 save_data：在 handler 读完 data.json 之后、写盘之前，让导入页（8766）整份落一次盘。
 
-    外部写入刻意**多塞一条记录**，也就是同时改了体积：Windows 的 mtime 粒度较粗，
-    背靠背两次写盘可能落在同一个 tick 里，只改内容不改长度的断言会时灵时不灵。
-    file_stamp 用 (mtime_ns, size) 正是接受这一点、而非追求完美的取舍。
+    外部写入沿用一个真实形状：追加一条记录（导入页干的就是这么件事）。
+    Task 2b 之后 file_stamp 已经是 size + 内容 sha256，等长的外部写照样能被发现，
+    所以这里不再需要"必须改体积才拦得住"这种妥协 —— 那句话属于旧的 (mtime_ns, size) 时代。
     """
     real_save = m.save_data
 
@@ -370,3 +372,35 @@ def test_every_http_write_path_passes_a_stamp():
     agent_src = inspect.getsource(m._agent_add_record)
     assert re.search(r"save_data\(data\)", agent_src), "agent 的写盘语义变了，Task 2 的例外要一起复核"
     assert re.search(r"#.*stamp", agent_src), "_agent_add_record 不带 stamp 的理由必须留在注释里，别被当成漏改"
+
+
+# ─── Task 2b: 客户端带着版本写盘 ───
+
+def test_client_version_mismatch_returns_409(api):
+    call, load, path = api
+    status, resp, hdr = call("GET", "/api/data", with_headers=True)
+    assert status == 200 and hdr.get("X-Ledger-Stamp"), resp
+    stamp = hdr["X-Ledger-Stamp"]
+    assert re.fullmatch(r"[0-9a-fA-F-]+", stamp), stamp  # header-safe, no spaces or CJK
+
+    outside = load() + [{"brand": "外部", "model": "写入", "cost": 1, "sell": 1}]
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(outside, f, ensure_ascii=False)
+    before = open(path, "rb").read()
+
+    status, resp = call("PUT", "/api/data/0", {"cost": 700}, if_match=stamp)
+    assert status == 409, resp
+    assert resp.get("ok") is False
+    assert open(path, "rb").read() == before, "409 时一个字节都不能写"
+
+    _, _, hdr2 = call("GET", "/api/data", with_headers=True)
+    status, resp = call("PUT", "/api/data/0", {"cost": 700}, if_match=hdr2["X-Ledger-Stamp"])
+    assert status == 200, resp
+    assert load()[0]["cost"] == 700.0
+
+
+def test_write_without_if_match_still_works(api):
+    """导入页与 agent 不带版本，不能被这个机制挡住。"""
+    call, load, _ = api
+    status, resp = call("POST", "/api/data", {"brand": "希捷", "model": "2T", "cost": 380, "sell": 0})
+    assert status == 200, resp

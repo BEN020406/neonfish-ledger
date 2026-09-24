@@ -93,10 +93,17 @@ def api(monkeypatch, tmp_path):
                 "backend replied with a non-JSON body: %r" % (raw[:200],)
             ) from exc
 
-    def call(method, path, payload=None, raw_body=None):
+    def shaped(status, payload, headers, with_headers):
+        """默认只回 (status, json)，所有既有调用点不受影响；
+        with_headers=True 时多回一份响应头（http.client.HTTPMessage，取头大小写不敏感）。"""
+        return (status, payload, headers) if with_headers else (status, payload)
+
+    def call(method, path, payload=None, raw_body=None, with_headers=False, if_match=None):
         """一次 HTTP 往返；断连/坏响应都翻译成能读懂的 AssertionError，不抛裸异常。
 
         raw_body 用来发"不是合法 JSON"的请求体（payload 会被 json.dumps，做不到）。
+        with_headers=True 额外返回响应头，用来看 GET /api/data 的 X-Ledger-Stamp。
+        if_match=<stamp> 给请求加 If-Match 头，模拟"前端拿自己读到的版本去写盘"。
         """
         body = raw_body
         if body is None and payload is not None:
@@ -104,11 +111,13 @@ def api(monkeypatch, tmp_path):
         req = urllib.request.Request(base + path, data=body, method=method)
         if body is not None:
             req.add_header("Content-Type", "application/json")
+        if if_match is not None:
+            req.add_header("If-Match", if_match)
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:
-                return resp.status, decode(resp.read())
+                return shaped(resp.status, decode(resp.read()), resp.headers, with_headers)
         except urllib.error.HTTPError as exc:
-            return exc.code, decode(exc.read())
+            return shaped(exc.code, decode(exc.read()), exc.headers, with_headers)
         except (urllib.error.URLError, ConnectionResetError, socket.timeout,
                 http.client.HTTPException) as exc:
             raise AssertionError(

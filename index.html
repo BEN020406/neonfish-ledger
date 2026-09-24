@@ -1158,10 +1158,40 @@ const API = '/api/data';
 
 let lastPayload = null;
 
+// 账本版本 token：只从 GET /api/data 的 X-Ledger-Stamp 响应头里学到，写请求再用 If-Match 带回去。
+// 启动时那份 INITIAL 是服务端直出的（send_html 原样吐 index.html，INITIAL 恒为 []），
+// 直出的 HTML 没有响应头可读，所以首屏这里只能是空串，直到第一次 fetchItems() 成功才拿到版本。
+// 空串就不发 If-Match —— 服务端把"没带版本"当作导入页/agent 那种无条件写放行，
+// 也就是这几次写没有旧视图保护，仅此一次，不做猜测性补版本。
+let _ledgerStamp = '';
+
+// 只有版本 token 时用的头：multipart 的 Content-Type 必须留给浏览器（boundary 是它拼的）。
+function ifMatchHeader() {
+  return _ledgerStamp ? { 'If-Match': _ledgerStamp } : {};
+}
+
+// JSON 写入口统一的头。
+function writeHeaders() {
+  return Object.assign({ 'Content-Type': 'application/json' }, ifMatchHeader());
+}
+
+// 409 只按 res.status 判，绝不拿 error 文案当分支（文案给人看，不是契约）。
+// 处理方式用户已定：丢掉正在填的表单、重拉列表、告个错，不回填也不重试 ——
+// 旧下标在新账本里可能已经指向另一条记录，把刚填的值按回原位置等于请用户再确认一次错数据。
+// 返回 false 给调用方当"这次写没发生"的信号（saveItem / deleteItem 直接透传）。
+async function handleConflict() {
+  await fetchItems();
+  closeModal();
+  showToast('账本已在别处被改动，列表已重新载入，请重新编辑', 'err');
+  return false;
+}
+
 // 返回新增记录条数；数据没变时返回 null，避免无谓重绘
 async function loadPayload() {
   const res = await fetch(API);
   const text = await res.text();
+  const s = res.headers.get('X-Ledger-Stamp');
+  if (s) _ledgerStamp = s;   // 同源才读得到；这份数据从现在起就是客户端认的版本
   if (text === lastPayload) return null;
   const parsed = parseItems(JSON.parse(text));
   const gained = parsed.length - items.length;
@@ -1210,18 +1240,24 @@ let editId = -1;
 
 async function saveItem(record) {
   if (editId >= 0) {
-    await fetch(API + '/' + editId, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(record) });
+    const res = await fetch(API + '/' + editId, { method: 'PUT', headers: writeHeaders(), body: JSON.stringify(record) });
+    if (res.status === 409) return await handleConflict();
   } else {
-    await fetch(API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(record) });
+    const res = await fetch(API, { method: 'POST', headers: writeHeaders(), body: JSON.stringify(record) });
+    if (res.status === 409) return await handleConflict();
   }
   await fetchItems();
   window._tplCache = null; // invalidate template cache
+  return true;
 }
 
 async function deleteItem(idx) {
-  await fetch(API + '/' + idx, { method: 'DELETE' });
+  // DELETE 没有请求体，Content-Type 就不带了，只带版本。
+  const res = await fetch(API + '/' + idx, { method: 'DELETE', headers: ifMatchHeader() });
+  if (res.status === 409) return await handleConflict();
   await fetchItems();
   window._tplCache = null;
+  return true;
 }
 
 // ─── STATS ──────────────────────────────
@@ -1709,14 +1745,26 @@ document.getElementById('modalSubmit').addEventListener('click', async () => {
     sn2: document.getElementById('fSN2').value.trim(),
   };
   if (!record.brand || !record.model) { alert('品牌和型号不能为空'); return; }
-  await saveItem(record);
+  const written = await saveItem(record);
+  if (!written) {
+    // 409：handleConflict 已经重拉列表、关掉表单并提示过。这里只顺手丢掉待传的图片，
+    // 别让它们在下一次提交时挂到一个已经换了人的下标上。
+    window._pendingImages = [];
+    return;
+  }
   if (window._pendingImages && window._pendingImages.length > 0) {
     const newItemIdx = items.length - 1;
     for (const file of window._pendingImages) {
       const fd = new FormData();
       fd.append('file', file);
       fd.append('record_idx', newItemIdx);
-      await fetch('/api/upload', { method: 'POST', body: fd });
+      // multipart 的 Content-Type 交给浏览器（boundary 只有它知道），所以这里只带版本头。
+      const res = await fetch('/api/upload', { method: 'POST', body: fd, headers: ifMatchHeader() });
+      if (res.status === 409) {
+        await handleConflict();
+        window._pendingImages = [];
+        return;
+      }
     }
     await fetchItems();
   }
@@ -2039,7 +2087,8 @@ function removeExistingImage(idx) {
   const imgs = Array.isArray(item.images) ? [...item.images] : (item.images ? [item.images] : []);
   const filename = imgs[idx];
   if (filename) {
-    fetch('/api/data/' + idx + '/images/' + encodeURIComponent(filename), { method: 'DELETE' }).then(() => fetchItems());
+    fetch('/api/data/' + idx + '/images/' + encodeURIComponent(filename), { method: 'DELETE', headers: ifMatchHeader() })
+      .then(res => res.status === 409 ? handleConflict() : fetchItems());
   }
 }
 

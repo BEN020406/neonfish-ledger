@@ -4,6 +4,7 @@ With Ollama AI Agent + Image Management
 """
 import http.server
 import json
+import hashlib
 import os
 import shutil
 import socket
@@ -51,20 +52,16 @@ class WriteConflict(Exception):
 
 
 def file_stamp():
-    """data.json 的粗略指纹，用来判断"我读到的那份还是现在这份吗"。
+    """data.json 的版本 token：size + 内容 sha256 前 16 位，纯十六进制，可直接进 HTTP header。
 
-    只取 (mtime_ns, size)，不是内容哈希：账本窗口（8765）和导入页（8766）都是
-    整读整写，规格 §12 风险 2 要的是"拒绝覆盖"这道底线，不是完整文件锁。
-    已知弱点，是刻意接受的：Windows 时钟粒度较粗，背靠背两次写盘可能落在同一个
-    mtime tick 里，所以只看 mtime 会漏；加上 size 后，"别人加了一条记录"这种
-    真实场景必然改体积，才拦得住。两条长度相同、时间相同、内容不同的外部写
-    仍然会漏 —— 真要精确，得把指纹换成文件内容哈希，或让前端把自己读到的
-    stamp 发回来（If-Match）。
+    账本 255 条约 49 KB，一次 sha256 远小于一毫秒；比 (mtime_ns, size) 可靠 ——
+    等长修改照样能发现，也不依赖文件系统时间精度。
     """
-    st = os.stat(DATA_FILE) if os.path.exists(DATA_FILE) else None
-    if st is None:
-        return None
-    return (st.st_mtime_ns, st.st_size)
+    if not os.path.exists(DATA_FILE):
+        return ''
+    with open(DATA_FILE, 'rb') as f:
+        blob = f.read()
+    return '%d-%s' % (len(blob), hashlib.sha256(blob).hexdigest()[:16])
 
 
 def load_data():
@@ -349,7 +346,12 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         path = parsed.path
 
         if path == '/api/data':
-            self.send_json(load_data())
+            # 先取 stamp 再 load：万一外部写正好插在两者之间，客户端拿到的是
+            # 「数据新、token 旧」，下一次写盘会被判 409 —— 虚警但安全。
+            # 反过来（先 load 再取 stamp）会把「数据旧、token 新」发出去，
+            # 旧视图照样能盖掉新数据，恰好放过这个头要拦的那次事故。
+            stamp = file_stamp()
+            self.send_json(load_data(), extra_headers={'X-Ledger-Stamp': stamp})
         elif path == '/' or path == '/index.html':
             self.send_html()
         elif path.startswith('/api/images/'):
@@ -420,6 +422,9 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         if not body:
             self.send_json({'ok': False, 'error': 'empty body'}, 400)
             return
+        # 客户端版本先查：旧页面连一次 load 都不该换来（没带 If-Match 时直接放行）。
+        if self.reject_if_client_stale():
+            return
         if self.reject_bad_money(body):
             return
         # stamp 先取再 load：守护覆盖的是"读 → 改 → 写"整段。
@@ -454,6 +459,9 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         if not body:
             self.send_json({'ok': False, 'error': 'empty body'}, 400)
             return
+        # 客户端版本先查，理由同 handle_add_record：这就是"停在旧数据的窗口保存"那一次事故。
+        if self.reject_if_client_stale():
+            return
         # stamp 先取再 load，理由同 handle_add_record。
         stamp = file_stamp()
         data = load_data()
@@ -484,6 +492,10 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         self.send_json({'ok': True, 'record': r})
 
     def handle_delete_record(self, idx):
+        # 先查客户端版本：旧页面手里的下标可能已经指向另一条记录，
+        # 让它走到下面的 404/删除分支都等于拿错位下标动账本。
+        if self.reject_if_client_stale():
+            return
         # stamp 先取再 load，理由同 handle_add_record。
         stamp = file_stamp()
         data = load_data()
@@ -520,6 +532,12 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'ok': False, 'error': 'no file field found'}, 400)
             return
 
+        # 版本先查再落图：请求体已经读完（不读会把连接留成半截），
+        # 所以这里判完就能连图片文件一起省掉，连孤儿文件都不产生。
+        # 上传走 multipart，Content-Type 不能动，If-Match 照样是普通请求头。
+        if self.reject_if_client_stale():
+            return
+
         file_info = parsed['file']
         original_name = file_info.get('filename', 'image.jpg')
         ext = os.path.splitext(original_name)[1].lower()
@@ -554,6 +572,9 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         self.send_json({'ok': True, 'filename': filename, 'url': f'/api/images/{filename}'})
 
     def handle_delete_image(self, idx, filename):
+        # 客户端版本先查：旧下标在新账本里可能已经是另一条记录的图。
+        if self.reject_if_client_stale():
+            return
         # stamp 先取再 load，理由同 handle_add_record。
         stamp = file_stamp()
         data = load_data()
@@ -638,12 +659,28 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
 
     # ─── HTTP helpers ───
 
+    def reject_if_client_stale(self):
+        """客户端带的版本（If-Match）已经不是当前这份文件了：回 409，返回 True 让调用方别碰盘。
+
+        和 Task 2 的内部 stamp 是互补的两道闸，都要留着：
+        - handler 里那份 stamp 只看住"我自己 load → save 这几毫秒"，防的是同一请求内的竞态；
+        - 这里看的是"你这个页面是什么时候读的"，防的是账本窗口开了一早上、中途导入页写过账本，
+          用户在停在旧数据的窗口里改一条并保存 —— 那时 stamp 那道闸必然是过的，只有版本对不上能发现。
+
+        If-Match 缺席一律放行：导入页（8766）和 agent 从来不知道版本，把它变成必填会直接砍掉那两条路。
+        """
+        expected = self.headers.get('If-Match')
+        if expected is not None and expected != file_stamp():
+            self.handle_write_conflict()
+            return True
+        return False
+
     def handle_write_conflict(self):
         """所有写端点共用的冲突回复：HTTP 409 + ok:false + 固定的 error 串。
 
-        契约的另一半在前端（见计划 Task 6 / Task 8）：收到 409 必须重新拉一次
-        /api/data 再让用户操作，不能继续拿着旧视图写盘。这里刻意不回任何数据，
-        判断只看 status，error 只是给人看的。
+        契约的另一半已经落在前端（index.html 的 handleConflict，计划 Task 2b）：
+        只按 status === 409 分支，重拉 /api/data、丢掉正在填的表单、提示用户重新编辑，
+        既不回填也不重试。这里刻意不回任何数据，判断只看 status，error 只是给人看的。
         """
         self.send_json({'ok': False, 'error': 'data.json changed elsewhere, reloaded'}, 409)
 
@@ -669,11 +706,16 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             return body if isinstance(body, dict) else None
         return None
 
-    def send_json(self, data, status=200):
+    def send_json(self, data, status=200, extra_headers=None):
+        """回一段 JSON。extra_headers 只加头、不动响应体形状：
+        GET /api/data 必须继续返回裸数组（前端 parseItems(INITIAL) 与既有断言都按数组读），
+        所以版本 token 只能走 X-Ledger-Stamp 头。"""
         body = json.dumps(data, ensure_ascii=False).encode('utf-8')
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Content-Length', len(body))
+        for name, value in (extra_headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body)
 
