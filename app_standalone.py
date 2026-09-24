@@ -622,8 +622,10 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'ok': False, 'error': 'no file field found'}, 400)
             return
 
-        # 版本先查再落图：请求体已经读完（不读会把连接留成半截），
-        # 所以这里判完就能连图片文件一起省掉，连孤儿文件都不产生。
+        # 版本先查再落图：请求体已经读完（不读会把连接留成半截），所以客户端那份版本
+        # 已经过期时，这里连图片文件都不必落盘就回 409。
+        # 但别把它读成"永远不会产生孤儿文件"：落图之后还要复查版本（见下），
+        # 那次拒绝和 save_data 抛的 WriteConflict 都发生在文件已经写盘之后，孤儿文件照样留下。
         # 上传走 multipart，Content-Type 不能动，If-Match 照样是普通请求头。
         stamp = file_stamp()
         if self.reject_if_client_stale(stamp):
@@ -687,9 +689,11 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
                     # 还没写成就返回：磁盘上的图仍然被账本引用着，状态是自洽的。
                     self.handle_write_conflict()
                     return
-            img_path = os.path.join(IMAGES_DIR, filename)
-            if os.path.exists(img_path):
-                os.remove(img_path)
+                # 只有这条记录确实引用过它才轮到物理删除：文件名不在 images 里时
+                # 这个文件很可能正被账本另一条记录引用着，无条件删就是一场静默的数据丢失。
+                img_path = os.path.join(IMAGES_DIR, filename)
+                if os.path.exists(img_path):
+                    os.remove(img_path)
             self.send_json({'ok': True})
         else:
             self.send_json({'ok': False, 'error': 'index out of range'}, 404)

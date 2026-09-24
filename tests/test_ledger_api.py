@@ -957,3 +957,65 @@ def test_no_write_endpoint_re_samples_the_version_after_its_client_check():
     src = inspect.getsource(m.APIHandler)
     assert "reject_if_client_stale()" not in src, "有写盘端点又用即时采样校验客户端版本了"
     assert re.search(r"def reject_if_client_stale\(self, stamp=None\)", src), "签名变了，调用点的约定要一起复核"
+
+
+# ─── 审查返工 Task 5: 删图的物理删除必须限定在"这张图确实属于这条记录" ───
+
+def test_delete_image_of_a_record_that_never_referenced_it_leaves_the_file_alone(api):
+    """要删的文件不在该记录的 images 里时，磁盘上一个字节都不许动。
+
+    这条路径真实存在：客户端的旧下标在新账本里指向另一条记录，而那张图正被别处引用着。
+    无条件 os.remove 等于用一次"删 A 的图"抹掉 B 的图 —— 账本没改、文件先没了，
+    是比 409 更糟的静默数据丢失。
+    """
+    import app_standalone as m
+
+    call, load, path = api
+    data_file = _prepare_race_files(api)
+    first, second = load()
+    # keep.jpg 属于第 1 条（images=["keep.jpg"]），第 0 条从来没引用过它。
+    records = [dict(first, images=[]), dict(second, images=["keep.jpg"])]
+    data_file.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+    before = _split_files_snapshot(path)
+
+    status, resp = call("DELETE", "/api/data/0/images/keep.jpg")
+    assert status == 200, resp
+    assert os.path.exists(os.path.join(m.IMAGES_DIR, "keep.jpg")), \
+        "该记录根本没引用 keep.jpg，删除请求却把这张正被别处引用的图抹掉了"
+    assert _split_files_snapshot(path) == before, "被拒绝的删图动了账本或图片"
+    assert load()[1]["images"] == ["keep.jpg"]
+
+
+# ─── 审查返工 Task 6: "复查版本"这道闸不许把正常 404 吞成 409 ───
+
+LEGACY_404_ROUTES = [
+    ("PUT", "/api/data/%d", {"cost": 601}),
+    ("DELETE", "/api/data/%d", None),
+    ("DELETE", "/api/data/%d/images/keep.jpg", None),
+]
+
+
+@pytest.mark.parametrize("idx", [-1, 2, 10**40])
+@pytest.mark.parametrize("method,route_tpl,payload", LEGACY_404_ROUTES)
+def test_legacy_crud_out_of_range_index_is_still_404_without_any_external_write(
+        api, method, route_tpl, payload, idx):
+    """没有任何外部改动时，越界下标仍然是 404。
+
+    钉的是复查逻辑的边界：file_stamp() != stamp 那道闸只在真有外部写时才该响，
+    一旦它跑在下标校验之前又写得像在拒绝，用户看到的就从"这条不存在"变成"账本被别人改过"，
+    前端还会顺手丢掉表单。这里连 .bak 与图片都逐字节比对，拒绝的请求不许碰盘。
+    """
+    call, load, path = api
+    data_file = _prepare_race_files(api)
+    first, second = load()
+    records = [dict(first, images=["keep.jpg"]), second]
+    data_file.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+    token = call("GET", "/api/data", with_headers=True)[2]["X-Ledger-Stamp"]
+    before = _split_files_snapshot(path)
+
+    status, resp = call(method, route_tpl % idx, payload, if_match=token)
+    assert status == 404, (method, route_tpl, idx, resp)
+    assert resp == {"ok": False, "error": "index out of range"}
+    assert _split_files_snapshot(path) == before, "越界请求把数据、备份或图片改动了"
+    assert not Path(path + ".tmp").exists(), "被拒绝的写盘不该留下半成品"
+    assert load() == records

@@ -1145,6 +1145,9 @@ function parseItems(raw) {
     sn2: r.sn2 || '',
     extra_price: safeFloat(r.extra_price) || 0,
     profit: safeFloat(r.sell) - safeFloat(r.cost),
+    // 不带出 images 的话，行内缩略图与编辑弹窗里的已有图片预览都拿不到数据，
+    // "删掉某张已有图片"这条路径在页面上根本走不到。
+    images: Array.isArray(r.images) ? r.images : (r.images ? [r.images] : []),
     get platform() { return detectPlatform(this.model); },
     get chipset() { return detectChipset(this.model); },
     get margin() { return this.cost > 0 ? (this.profit / this.cost * 100) : 0; }
@@ -1190,6 +1193,15 @@ async function handleConflict() {
   await fetchItems();
   closeModal();
   showToast('账本已在别处被改动，列表已重新载入，请重新编辑', 'err');
+  return false;
+}
+
+// 和 handleConflict 同一套策略（重拉、关窗、报错，不重试也不回填），只是这句话用在
+// 表单已经关掉、剩下的是传图/删图收尾时更准确 —— 那时没有任何"正在编辑"可重新编辑。
+async function handleConflictAfterFormClosed() {
+  await fetchItems();
+  closeModal();
+  showToast('账本已在别处被改动，本次图片改动已停止，列表已重新载入', 'err');
   return false;
 }
 
@@ -1685,6 +1697,7 @@ async function openAddModal() {
   document.getElementById('fSN2').value = '';
   document.getElementById('imgPreviewList').innerHTML = '';
   window._pendingImages = [];
+  window._pendingImageRemovals = [];
   document.getElementById('priceHint').style.display = 'none';
   document.getElementById('templateField').style.display = '';
   // populate template dropdown
@@ -1725,12 +1738,13 @@ function openEditModal(idx) {
   document.getElementById('fAccPrice').value = i.accessory_price || '';
   document.getElementById('fSN2').value = i.sn2 || '';
   window._pendingImages = [];
+  window._pendingImageRemovals = [];
   const previewList = document.getElementById('imgPreviewList');
   previewList.innerHTML = '';
   const imgs = Array.isArray(i.images) ? i.images : (i.images ? [i.images] : []);
-  imgs.forEach((img, idx) => {
+  imgs.forEach((img, imgIdx) => {
     const src = img.startsWith('http') ? img : '/api/images/' + img;
-    previewList.innerHTML += `<div style="position:relative;display:inline-block"><img src="${src}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border)"><button onclick="removeExistingImage(${idx})" style="position:absolute;top:-6px;right:-6px;background:var(--red);border:none;color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;line-height:1">×</button></div>`;
+    previewList.innerHTML += `<div class="existing-img" data-img-idx="${imgIdx}" style="position:relative;display:inline-block"><img src="${src}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border)"><button onclick="removeExistingImage(${imgIdx})" style="position:absolute;top:-6px;right:-6px;background:var(--red);border:none;color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;line-height:1">×</button></div>`;
   });
   document.getElementById('modal').classList.add('active');
   _formStamp = _ledgerStamp;
@@ -1741,6 +1755,9 @@ function closeModal() {
   document.getElementById('modal').classList.remove('active');
   editId = -1;
   _formStamp = '';
+  // 取消/点遮罩关窗就把待删的图整批丢掉：不当场写盘的语义收益就在这儿 ——
+  // 没提交的删除不该已经从账本里消失。提交路径会先把队列取走再调这里。
+  window._pendingImageRemovals = [];
   if (dirtyWhileEditing) {
     dirtyWhileEditing = false;
     syncFromDisk();
@@ -1775,11 +1792,27 @@ document.getElementById('modalSubmit').addEventListener('click', async () => {
   }
   const pending = window._pendingImages || [];
   window._pendingImages = [];
-  // 先收表单再传图：写盘之后的新版本（和新条目的下标）只有弹窗关闭后的 loadPayload 才认，
-  // 挂着提交前那份版本去传图只会把自己刚写下的账本判成冲突。
+  const removals = window._pendingImageRemovals || [];
+  window._pendingImageRemovals = [];
+  // 先收表单再收尾图片：写盘之后的新版本（和新条目的下标）只有弹窗关闭后的 loadPayload 才认，
+  // 挂着提交前那份版本去传图/删图只会把自己刚写下的账本判成冲突。
+  // dirtyWhileEditing 在这里清掉、重读改由下面 await：closeModal 那个没人等的 GET 和服务端
+  // 多线程下乱序落地的响应，会把版本回拨成旧一代，让收尾的某一次写撞自己刚写下的账本。
+  dirtyWhileEditing = false;
   closeModal();
-  if (!pending.length) return;
-  await fetchItems();
+  await syncFromDisk();
+  if (!pending.length && !removals.length) return;
+  // 待删的图在这里才真正写盘，用的是全局那份最新版本；每删一张都要重读一次，
+  // 否则下一张会拿着上一张写盘之前的版本去撞自己刚写下的账本。
+  for (const job of removals) {
+    const res = await fetch(API + '/' + job.idx + '/images/' + encodeURIComponent(job.filename),
+                            { method: 'DELETE', headers: ifMatchHeader() });
+    if (res.status === 409) {
+      await handleConflictAfterFormClosed();
+      return;
+    }
+    await fetchItems();
+  }
   const newItemIdx = items.length - 1;
   for (const file of pending) {
     const fd = new FormData();
@@ -1788,9 +1821,11 @@ document.getElementById('modalSubmit').addEventListener('click', async () => {
     // multipart 的 Content-Type 交给浏览器（boundary 只有它知道），所以这里只带版本头。
     const res = await fetch('/api/upload', { method: 'POST', body: fd, headers: ifMatchHeader() });
     if (res.status === 409) {
-      await handleConflict();
+      await handleConflictAfterFormClosed();
       return;
     }
+    // 同一段收尾窗口的同一个坑：每张图都会轮一次版本，不重读第二张就必然 409。
+    await fetchItems();
   }
   await fetchItems();
 });
@@ -2104,15 +2139,21 @@ function handleImageSelect(event) {
   event.target.value = '';
 }
 
-function removeExistingImage(idx) {
-  const item = items[idx];
+function removeExistingImage(imgIdx) {
+  // × 只记不写：当场 DELETE 会把文件版本推新一格，而这份表单仍锚在打开时那份版本上，
+  // 于是"删一张已有图片"之后每次保存都必现虚警 409。真正的删除在提交关窗、
+  // 重读到自己刚写下的新版本之后再逐条发出（见 modalSubmit 的收尾窗口）。
+  // 记录下标只取 editId：imgIdx 是图片序号，早先它被同时当成 items[] 的下标用，
+  // 删第 0 张图会删掉列表里第一条记录的图。
+  const item = items.find(x => x.id === editId);
   if (!item) return;
-  const imgs = Array.isArray(item.images) ? [...item.images] : (item.images ? [item.images] : []);
-  const filename = imgs[idx];
-  if (filename) {
-    fetch('/api/data/' + idx + '/images/' + encodeURIComponent(filename), { method: 'DELETE', headers: ifMatchHeader() })
-      .then(res => res.status === 409 ? handleConflict() : fetchItems());
-  }
+  const imgs = Array.isArray(item.images) ? item.images : (item.images ? [item.images] : []);
+  const filename = imgs[imgIdx];
+  if (!filename) return;
+  const node = document.querySelector('#imgPreviewList .existing-img[data-img-idx="' + imgIdx + '"]');
+  if (node) node.remove();
+  if (!window._pendingImageRemovals) window._pendingImageRemovals = [];
+  window._pendingImageRemovals.push({ idx: editId, filename: filename });
 }
 
 // ─── IMAGE VIEWER ───────────────────────────
