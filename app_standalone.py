@@ -5,6 +5,7 @@ With Ollama AI Agent + Image Management
 import http.server
 import json
 import hashlib
+import math
 import os
 import shutil
 import socket
@@ -366,6 +367,8 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
 
         if path == '/api/data':
             self.handle_add_record()
+        elif path == '/api/split_record':
+            self.handle_split_record()
         elif path == '/api/chat':
             self.handle_chat()
         elif path == '/api/smart-parse':
@@ -490,6 +493,86 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_write_conflict()
             return
         self.send_json({'ok': True, 'record': r})
+
+    def handle_split_record(self):
+        body = self.read_body()
+        if not body:
+            self.send_json({'ok': False, 'error': 'empty body'}, 400)
+            return
+        idx = body.get('idx')
+        parts = body.get('parts')
+        if type(idx) is not int:
+            self.send_json({'ok': False, 'error': 'idx must be an integer'}, 400)
+            return
+        if not isinstance(parts, list) or not parts:
+            self.send_json({'ok': False, 'error': 'parts must be a non-empty array'}, 400)
+            return
+
+        updates = []
+        for part in parts:
+            if not isinstance(part, dict):
+                self.send_json({'ok': False, 'error': 'each part must be an object'}, 400)
+                return
+            update = {}
+            for key in ('brand', 'model'):
+                value = part.get(key)
+                if not isinstance(value, str) or not value.strip():
+                    self.send_json({'ok': False, 'error': '%s must be a non-empty string' % key}, 400)
+                    return
+                try:
+                    value.encode('utf-8')
+                except UnicodeEncodeError:
+                    self.send_json({'ok': False, 'error': '%s must be valid UTF-8 text' % key}, 400)
+                    return
+                update[key] = value.strip()
+            if 'cost' in part:
+                try:
+                    cost = None if isinstance(part['cost'], bool) else _money(part['cost'])
+                except OverflowError:
+                    cost = None
+                if cost is None or not math.isfinite(cost):
+                    self.send_json({'ok': False, 'error': 'invalid cost'}, 400)
+                    return
+                update['cost'] = cost
+            updates.append(update)
+
+        # 校验客户端与最终保存必须用同一份版本，避免两次采样间删除导致下标错位。
+        stamp = file_stamp()
+        if self.reject_if_client_stale(stamp):
+            return
+        data = load_data()
+        # 新版本的下标或来源错误也属于冲突，客户端必须丢弃旧输入后重拉。
+        if file_stamp() != stamp:
+            self.handle_write_conflict()
+            return
+        if not (0 <= idx < len(data)):
+            self.send_json({'ok': False, 'error': 'index out of range'}, 404)
+            return
+        record = data[idx]
+        source_order_id = record.get('source_order_id')
+        if not source_order_id or (isinstance(source_order_id, str) and not source_order_id.strip()):
+            self.send_json({'ok': False, 'error': 'record must have a source_order_id'}, 400)
+            return
+
+        context = {key: record[key] for key in ORDER_CONTEXT_KEYS if key in record}
+        updates[0].setdefault('cost', record.get('cost', 0))
+        record.update(updates[0])
+        indices = [idx]
+        for update in updates[1:]:
+            derived = {
+                'brand': update['brand'], 'model': update['model'], 'cost': update.get('cost', 0),
+                'sell': '', 'sn': '', 'accessory': '', 'accessory_price': '', 'extra_price': '',
+                'images': [],
+            }
+            derived.update(context)
+            indices.append(len(data))
+            data.append(derived)
+        try:
+            save_data(data, stamp)
+        except WriteConflict:
+            self.handle_write_conflict()
+            return
+        self.send_json({'ok': True, 'indices': indices, 'order_paid': record.get('order_paid', '')})
 
     def handle_delete_record(self, idx):
         # 先查客户端版本：旧页面手里的下标可能已经指向另一条记录，
@@ -659,8 +742,9 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
 
     # ─── HTTP helpers ───
 
-    def reject_if_client_stale(self):
+    def reject_if_client_stale(self, stamp=None):
         """客户端带的版本（If-Match）已经不是当前这份文件了：回 409，返回 True 让调用方别碰盘。
+        可传入调用方固定的 stamp；省略时保持原来的即时采样行为。
 
         和 Task 2 的内部 stamp 是互补的两道闸，都要留着：
         - handler 里那份 stamp 只看住"我自己 load → save 这几毫秒"，防的是同一请求内的竞态；
@@ -670,7 +754,7 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         If-Match 缺席一律放行：导入页（8766）和 agent 从来不知道版本，把它变成必填会直接砍掉那两条路。
         """
         expected = self.headers.get('If-Match')
-        if expected is not None and expected != file_stamp():
+        if expected is not None and expected != (file_stamp() if stamp is None else stamp):
             self.handle_write_conflict()
             return True
         return False

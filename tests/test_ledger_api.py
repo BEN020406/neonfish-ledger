@@ -7,6 +7,7 @@ fixture（api / SEED / 沙盒兜底）在 tests/conftest.py，后面 10 个测�
 import json
 import os
 import re
+from pathlib import Path
 
 import pytest
 
@@ -169,7 +170,7 @@ def _sha(path):
         return hashlib.sha256(f.read()).hexdigest()
 
 
-def test_save_data_refuses_to_clobber_external_writer(api):
+def test_save_data_conflict_preserves_backup_and_leaves_no_tmp(api):
     """载入后又出现第三方写入时，save_data(stamp) 必须拒绝，而不是覆盖。
 
     被拒的那次写盘连 .bak 都不许轮掉：备份只有一代，轮掉就等于把"还能救回来"
@@ -216,7 +217,7 @@ def _race_save(m, load, path, seen):
     return racing
 
 
-def test_save_data_refuses_to_clobber_external_writer(api):
+def test_save_data_conflict_allows_later_unstamped_overwrite(api):
     """载入后又出现第三方写入时，save_data(stamp) 必须拒绝，而不是覆盖。"""
     import app_standalone as m
 
@@ -404,3 +405,392 @@ def test_write_without_if_match_still_works(api):
     call, load, _ = api
     status, resp = call("POST", "/api/data", {"brand": "希捷", "model": "2T", "cost": 380, "sell": 0})
     assert status == 200, resp
+
+
+# ─── Task 3: 单条导入记录拆分 ───
+
+SPLIT_PART = {"brand": "光威", "model": "神策 16G×2", "cost": 500}
+
+
+def _prepare_split_files(api):
+    """只在 api 沙盒预置备份和图片，之后逐字节核对所有文件。"""
+    import app_standalone as m
+
+    _, _, path = api
+    data_file = Path(path)
+    assert m.DATA_FILE == path
+    images = Path(m.IMAGES_DIR)
+    assert images.parent == data_file.parent
+    images.mkdir(exist_ok=True)
+    (images / "keep.jpg").write_bytes(b"\xff\xd8keep-image")
+    (images / "unreferenced.png").write_bytes(b"unreferenced-image")
+    Path(path + ".bak").write_bytes(b"previous backup generation\r\n")
+    return data_file
+
+
+def _split_files_snapshot(path):
+    root = Path(path).parent
+    return {str(p.relative_to(root)): p.read_bytes()
+            for p in root.rglob("*") if p.is_file()}
+
+
+def test_split_appends_raw_indices_preserves_fields_and_saves_once(api, monkeypatch):
+    import app_standalone as m
+
+    call, load, path = api
+    data_file = _prepare_split_files(api)
+    manual, imported = load()
+    imported.update(sell=950, sn="SN-1", sn2="SN-2", accessory="原盒",
+                    accessory_price="25", extra_price=12, images=["keep.jpg"],
+                    note="只属于原记录", custom={"keep": True})
+    sibling = dict(imported, brand="同单兄弟", model="保持原样", cost=50)
+    # 空记录会被前端隐藏，但 API 必须一直使用原数组下标。
+    records = [{}, imported, sibling, manual]
+    data_file.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+    before = _split_files_snapshot(path)
+    stamp = m.file_stamp()
+    counts = {"load": 0, "save": 0}
+    real_load, real_save = m.load_data, m.save_data
+
+    def counted_load():
+        counts["load"] += 1
+        return real_load()
+
+    def counted_save(data, saved_stamp=None):
+        counts["save"] += 1
+        assert saved_stamp == stamp
+        return real_save(data, saved_stamp)
+
+    monkeypatch.setattr(m, "load_data", counted_load)
+    monkeypatch.setattr(m, "save_data", counted_save)
+    ignored = {key: "不可覆盖" for key in ORDER_CONTEXT_KEYS}
+    ignored.update(sell=999, sn="bad", sn2="bad", accessory="bad",
+                   accessory_price=999, extra_price=999, images=["bad.jpg"],
+                   note="bad", custom="bad")
+    status, resp = call("POST", "/api/split_record", {"idx": 1, "parts": [
+        dict(ignored, brand=" 光威 ", model=" 神策 16G×2\t", cost=500),
+        dict(ignored, brand="十铨", model="Delta 16G", cost="300"),
+        dict(ignored, brand="其他", model="配套件", cost=-5),
+    ]})
+    assert status == 200, resp
+    assert resp == {"ok": True, "indices": [1, 4, 5], "order_paid": 800}
+    assert counts == {"load": 1, "save": 1}
+    expected = [dict(r) for r in records]
+    expected[1].update(brand="光威", model="神策 16G×2", cost=500.0)
+    context = {key: imported[key] for key in ORDER_CONTEXT_KEYS}
+    for brand, model, cost in [("十铨", "Delta 16G", 300.0), ("其他", "配套件", -5.0)]:
+        expected.append(dict(context, brand=brand, model=model, cost=cost, sell="",
+                             sn="", accessory="", accessory_price="", extra_price="", images=[]))
+    assert load() == expected
+    assert all(isinstance(load()[idx]["cost"], float) for idx in resp["indices"])
+    after = _split_files_snapshot(path)
+    assert after.pop("data.json.bak") == before["data.json"], "备份必须是整个拆分前账本"
+    after.pop("data.json")
+    assert after == {k: v for k, v in before.items() if k not in ("data.json", "data.json.bak")}
+    assert not Path(path + ".tmp").exists()
+
+
+def test_split_derived_record_again_keeps_original_order_paid(api):
+    call, load, path = api
+    _prepare_split_files(api)
+    status, first = call("POST", "/api/split_record", {"idx": 1, "parts": [
+        SPLIT_PART, {"brand": "十铨", "model": "Delta", "cost": 300},
+    ]})
+    assert status == 200, first
+    before = load()
+    before_bytes = Path(path).read_bytes()
+    status, second = call("POST", "/api/split_record", {"idx": first["indices"][1], "parts": [
+        {"brand": "十铨", "model": "Delta A", "cost": 200},
+        {"brand": "十铨", "model": "Delta B", "cost": 100},
+    ]})
+    assert status == 200, second
+    assert second == {"ok": True, "indices": [2, 3], "order_paid": 800}
+    assert load()[:2] == before[:2]
+    assert [r["order_paid"] for r in load()[1:]] == [800, 800, 800]
+    assert Path(path + ".bak").read_bytes() == before_bytes
+
+
+def test_split_legacy_source_only_does_not_fabricate_order_metadata(api):
+    call, load, path = api
+    data_file = _prepare_split_files(api)
+    records = load()
+    original = {"source_order_id": "legacy", "brand": "旧牌", "model": "整包",
+                "cost": 987, "sn2": "private", "note": "private"}
+    records[1] = original
+    data_file.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+    status, resp = call("POST", "/api/split_record", {"idx": 1, "parts": [SPLIT_PART, SPLIT_PART]})
+    assert status == 200, resp
+    assert resp == {"ok": True, "indices": [1, 2], "order_paid": ""}
+    assert load()[1] == dict(original, **SPLIT_PART)
+    assert load()[2] == dict(SPLIT_PART, source_order_id="legacy", sell="", sn="",
+                             accessory="", accessory_price="", extra_price="", images=[])
+    assert not any(key in r for r in load()[1:] for key in ORDER_CONTEXT_KEYS if key != "source_order_id")
+
+
+@pytest.mark.parametrize("cost", [None, "", 0, -5, 12.5, " 12.50 ", "-3", "1e2"])
+def test_split_accepts_empty_finite_and_numeric_string_costs(api, cost):
+    call, load, path = api
+    _prepare_split_files(api)
+    status, resp = call("POST", "/api/split_record", {"idx": 1, "parts": [
+        dict(SPLIT_PART, cost=cost), dict(SPLIT_PART, cost=cost),
+    ]})
+    assert status == 200, resp
+    expected = 0.0 if cost in (None, "") else float(cost)
+    assert [r["cost"] for r in load()[1:]] == [expected, expected]
+    assert all(isinstance(r["cost"], float) for r in load()[1:])
+
+
+@pytest.mark.parametrize("part_count", [1, 3])
+def test_split_omitted_cost_preserves_first_and_defaults_appended_to_zero(api, part_count):
+    call, load, path = api
+    data_file = _prepare_split_files(api)
+    records = load()
+    records[1]["cost"] = "205.50"
+    data_file.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+    before = data_file.read_bytes()
+    status, resp = call("POST", "/api/split_record", {"idx": 1, "parts": [
+        {"brand": " 光威 ", "model": " 神策 "} for _ in range(part_count)
+    ]})
+    assert status == 200, resp
+    assert resp == {"ok": True, "indices": list(range(1, part_count + 1)), "order_paid": 800}
+    assert load()[0] == records[0]
+    assert load()[1] == dict(records[1], brand="光威", model="神策")
+    assert [r["cost"] for r in load()[2:]] == [0] * (part_count - 1)
+    assert Path(path + ".bak").read_bytes() == before
+
+
+BAD_SPLIT_REQUESTS = [
+    pytest.param({}, id="empty-object"),
+    pytest.param({"parts": [SPLIT_PART]}, id="missing-index"),
+    pytest.param({"idx": 1}, id="missing-parts"),
+] + [
+    pytest.param({"idx": idx, "parts": [SPLIT_PART]}, id="index-" + name)
+    for name, idx in [("true", True), ("false", False), ("string", "1"), ("float", 1.0),
+                      ("null", None), ("list", []), ("object", {})]
+] + [
+    pytest.param({"idx": 1, "parts": parts}, id="parts-" + name)
+    for name, parts in [("empty", []), ("null", None), ("object", {}),
+                        ("string", "part"), ("number", 1), ("bool", True)]
+] + [
+    pytest.param({"idx": 1, "parts": [SPLIT_PART, part]}, id="later-part-" + name)
+    for name, part in [("null", None), ("number", 1), ("string", "part"),
+                       ("list", []), ("bool", True), ("empty-object", {}),
+                       ("missing-brand", {"model": "x"}), ("missing-model", {"brand": "x"})]
+] + [
+    pytest.param({"idx": 1, "parts": [SPLIT_PART, dict(SPLIT_PART, **{key: value})]},
+                 id="later-" + key + "-" + name)
+    for key in ("brand", "model")
+    for name, value in [("empty", ""), ("whitespace", " \t\n"), ("null", None),
+                        ("number", 123), ("list", []), ("object", {}), ("bool", True)]
+] + [
+    pytest.param({"idx": 1, "parts": [SPLIT_PART, dict(SPLIT_PART, cost=cost)]},
+                 id="later-cost-" + name)
+    for name, cost in [("true", True), ("false", False), ("text", "abc"), ("unit", "12元"),
+                       ("object", {}), ("list", []), ("nan", float("nan")),
+                       ("inf", float("inf")), ("negative-inf", float("-inf")),
+                       ("nan-string", "NaN"), ("inf-string", "Infinity"),
+                       ("negative-inf-string", "-Infinity"), ("large-exponent", "1e309"),
+                       ("integer-overflow", 10**400)]
+]
+
+
+@pytest.mark.parametrize("payload", BAD_SPLIT_REQUESTS)
+def test_split_bad_input_is_400_without_partial_write(api, payload):
+    call, load, path = api
+    _prepare_split_files(api)
+    before = _split_files_snapshot(path)
+    status, resp = call("POST", "/api/split_record", payload)
+    assert status == 400, resp
+    assert resp["ok"] is False and resp["error"]
+    assert _split_files_snapshot(path) == before, "坏的后一项也不能留下前几项、备份或图片副作用"
+
+
+@pytest.mark.parametrize("part_index", [0, 1], ids=["first", "later"])
+@pytest.mark.parametrize("key", ["brand", "model"])
+@pytest.mark.parametrize("surrogate", ["\ud800", "\udfff"], ids=["high", "low"])
+def test_split_lone_surrogate_is_400_without_writing(api, part_index, key, surrogate):
+    call, _, path = api
+    _prepare_split_files(api)
+    before = _split_files_snapshot(path)
+    payload = {"idx": 1, "parts": [dict(SPLIT_PART), dict(SPLIT_PART)]}
+    payload["parts"][part_index][key] = surrogate
+    # 转义后发送，避免客户端编码失败掩盖服务端的校验漏洞。
+    raw = json.dumps(payload, ensure_ascii=True).encode("ascii")
+    status, resp = call("POST", "/api/split_record", raw_body=raw)
+    assert status == 400, resp
+    assert resp["ok"] is False and key in resp["error"]
+    assert surrogate not in resp["error"]
+    assert _split_files_snapshot(path) == before
+
+
+def test_split_accepts_json_surrogate_pair_and_saves_supplementary_character(api):
+    call, load, path = api
+    data_file = _prepare_split_files(api)
+    before = _split_files_snapshot(path)
+    character = "\U00020000"
+    parts = [dict(SPLIT_PART, brand="品牌" + character, model="型号" + character)
+             for _ in range(2)]
+    raw = json.dumps({"idx": 1, "parts": parts}, ensure_ascii=True).encode("ascii")
+    assert b"\\ud840\\udc00" in raw
+    status, resp = call("POST", "/api/split_record", raw_body=raw)
+    assert status == 200, resp
+    assert resp == {"ok": True, "indices": [1, 2], "order_paid": 800}
+    assert [{key: r[key] for key in SPLIT_PART} for r in load()[1:]] == parts
+    assert character.encode("utf-8") in data_file.read_bytes()
+    after = _split_files_snapshot(path)
+    assert after.pop("data.json.bak") == before["data.json"]
+    after.pop("data.json")
+    assert after == {k: v for k, v in before.items() if k not in ("data.json", "data.json.bak")}
+    assert not Path(path + ".tmp").exists()
+
+
+@pytest.mark.parametrize("raw", [b'{"idx":1,', b'not json', b'[]', b'123', b'null', b'true', b'"x"', b''])
+def test_split_bad_json_or_non_object_is_400_without_writing(api, raw):
+    call, load, path = api
+    _prepare_split_files(api)
+    before = _split_files_snapshot(path)
+    status, resp = call("POST", "/api/split_record", raw_body=raw)
+    assert status == 400, resp
+    assert resp["ok"] is False
+    assert _split_files_snapshot(path) == before
+
+
+@pytest.mark.parametrize("source", ["missing", None, "", " \t"])
+def test_split_rejects_records_without_nonempty_source_order_id(api, source):
+    call, load, path = api
+    data_file = _prepare_split_files(api)
+    records = load()
+    if source != "missing":
+        records[0]["source_order_id"] = source
+    data_file.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+    before = _split_files_snapshot(path)
+    status, resp = call("POST", "/api/split_record", {"idx": 0, "parts": [SPLIT_PART]})
+    assert status == 400, resp
+    assert resp["ok"] is False
+    assert _split_files_snapshot(path) == before
+
+
+@pytest.mark.parametrize("idx", [-1, 2, 10**40])
+def test_split_integer_index_out_of_range_is_404_without_writing(api, idx):
+    call, load, path = api
+    _prepare_split_files(api)
+    before = _split_files_snapshot(path)
+    status, resp = call("POST", "/api/split_record", {"idx": idx, "parts": [SPLIT_PART]})
+    assert status == 404, resp
+    assert resp == {"ok": False, "error": "index out of range"}
+    assert _split_files_snapshot(path) == before
+
+
+def test_split_stale_client_rejected_then_refreshed_token_succeeds(api, monkeypatch):
+    import app_standalone as m
+
+    call, load, path = api
+    data_file = _prepare_split_files(api)
+    status, _, headers = call("GET", "/api/data", with_headers=True)
+    assert status == 200
+    token = headers["X-Ledger-Stamp"]
+    outside = load() + [_outside_record()]
+    data_file.write_text(json.dumps(outside, ensure_ascii=False), encoding="utf-8")
+    before = _split_files_snapshot(path)
+    loads = []
+    real_load = m.load_data
+
+    def counted_load():
+        loads.append(True)
+        return real_load()
+
+    monkeypatch.setattr(m, "load_data", counted_load)
+    payload = {"idx": 1, "parts": [SPLIT_PART, SPLIT_PART]}
+    status, resp = call("POST", "/api/split_record", payload, if_match=token)
+    assert status == 409, resp
+    assert resp == {"ok": False, "error": CONFLICT_ERROR}
+    assert loads == [], "旧客户端必须在 load 之前被拒绝"
+    assert _split_files_snapshot(path) == before
+    status, _, headers = call("GET", "/api/data", with_headers=True)
+    assert status == 200 and headers["X-Ledger-Stamp"] != token
+    status, resp = call("POST", "/api/split_record", payload, if_match=headers["X-Ledger-Stamp"])
+    assert status == 200, resp
+    assert resp == {"ok": True, "indices": [1, 3], "order_paid": 800}
+    assert load()[2] == outside[2]
+    assert Path(path + ".bak").read_bytes() == before["data.json"]
+
+
+def test_split_external_write_before_save_returns_real_conflict(api, monkeypatch):
+    import app_standalone as m
+
+    call, load, path = api
+    data_file = _prepare_split_files(api)
+    seen = {}
+    real_save = m.save_data
+    original_stamp = m.file_stamp()
+
+    def racing_save(data, stamp=None):
+        assert stamp == original_stamp
+        outside = load() + [_outside_record()]
+        data_file.write_text(json.dumps(outside, ensure_ascii=False), encoding="utf-8")
+        seen["files"] = _split_files_snapshot(path)
+        return real_save(data, stamp)
+
+    monkeypatch.setattr(m, "save_data", racing_save)
+    status, resp = call("POST", "/api/split_record", {"idx": 1, "parts": [SPLIT_PART, SPLIT_PART]})
+    assert status == 409, resp
+    assert resp == {"ok": False, "error": CONFLICT_ERROR}
+    assert _split_files_snapshot(path) == seen["files"], "冲突必须保留外部数据、旧备份和全部图片"
+    assert not Path(path + ".tmp").exists()
+
+
+@pytest.mark.parametrize("with_token", [True, False])
+@pytest.mark.parametrize("remaining_kind", ["imported", "missing", "manual"])
+def test_split_reuses_first_stamp_when_external_delete_shifts_index(
+        api, monkeypatch, with_token, remaining_kind):
+    """删除后的新版本不能成为拆分基准，也不能把冲突降为下标或来源错误。"""
+    import app_standalone as m
+
+    call, load, path = api
+    data_file = _prepare_split_files(api)
+    manual, imported = load()
+    imported["images"] = ["keep.jpg"]
+    records = [dict(imported, brand="A", source_order_id="order-A")]
+    if remaining_kind == "imported":
+        records.append(dict(imported, brand="B", source_order_id="order-B"))
+    elif remaining_kind == "manual":
+        records.append(dict(manual, brand="B"))
+    data_file.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+    status, _, headers = call("GET", "/api/data", with_headers=True)
+    assert status == 200
+    token = headers["X-Ledger-Stamp"]
+    real_stamp, real_load = m.file_stamp, m.load_data
+    samples, loaded_versions, saved_stamps, seen = [], [], [], {}
+    real_save = m.save_data
+
+    def delete_after_first_sample():
+        stamp = real_stamp()
+        samples.append(stamp)
+        if len(samples) == 1:
+            # 不伪造 token，也不依赖时钟：在第一次真实取版本后直接删除临时账本首条。
+            data_file.write_text(json.dumps(records[1:], ensure_ascii=False), encoding="utf-8")
+            seen["files"] = _split_files_snapshot(path)
+        return stamp
+
+    def observed_load():
+        data = real_load()
+        loaded_versions.append(json.loads(json.dumps(data)))
+        return data
+
+    def observed_save(data, stamp=None):
+        saved_stamps.append(stamp)
+        return real_save(data, stamp)
+
+    monkeypatch.setattr(m, "file_stamp", delete_after_first_sample)
+    monkeypatch.setattr(m, "load_data", observed_load)
+    monkeypatch.setattr(m, "save_data", observed_save)
+    status, resp = call("POST", "/api/split_record", {"idx": 0, "parts": [SPLIT_PART, SPLIT_PART]},
+                        if_match=token if with_token else None)
+    assert status == 409, resp
+    assert resp == {"ok": False, "error": CONFLICT_ERROR}
+    assert loaded_versions == [records[1:]], "确定性覆盖校验到 load 之间的下标移位窗口"
+    assert samples[0] == token and real_stamp() != token
+    assert all(stamp == token for stamp in saved_stamps), "允许提前拒绝，但不能重定保存基准"
+    assert _split_files_snapshot(path) == seen["files"]
+    assert load() == records[1:]
+    assert not Path(path + ".tmp").exists()
