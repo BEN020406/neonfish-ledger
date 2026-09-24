@@ -651,6 +651,27 @@ tr:hover td { background: rgba(255,255,255,0.01); }
 }
 .modal .btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 26px; }
 
+/* ─── SPLIT MODAL（拆单）─── 只借既有 token 排版，不引入新色值 ─── */
+.split-row {
+  display: grid; grid-template-columns: 1fr 1.4fr 88px 30px; gap: 8px;
+  align-items: center; margin-bottom: 8px;
+}
+.split-del {
+  height: 30px; border-radius: 4px;
+  border: 1px solid transparent; background: transparent;
+  color: var(--muted); cursor: pointer; font-size: 0.9rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.split-del:hover:not(:disabled) {
+  border-color: rgba(255,82,82,0.35); color: var(--red); background: rgba(255,82,82,0.06);
+}
+.split-del:disabled { opacity: 0.3; cursor: not-allowed; }
+.split-meta {
+  font-size: 0.7rem; color: var(--muted);
+  font-family: var(--font-display); letter-spacing: 0.04em;
+}
+.split-meta.warn { color: var(--gold); }
+
 /* ─── FOOTER ─── */
 .footer {
   text-align: center; padding: 30px 0 10px; color: var(--muted);
@@ -1046,6 +1067,26 @@ tr:hover td { background: rgba(255,255,255,0.01); }
   </div>
 </div>
 
+<!-- SPLIT MODAL -->
+<div class="modal-overlay" id="splitModal">
+  <div class="modal">
+    <h2>拆成多条记录</h2>
+    <div class="field">
+      <label>拆分清单 · 第一行就地改本条，其余追加为新记录</label>
+      <div id="splitRows"></div>
+      <button class="btn" id="splitAddRow" onclick="addSplitRow()">＋ 加一行</button>
+    </div>
+    <div class="field">
+      <div class="split-meta" id="splitTotals"></div>
+      <div class="split-meta" id="splitPaid" style="display:none"></div>
+    </div>
+    <div class="btns">
+      <button class="btn danger" onclick="closeModal()">取消</button>
+      <button class="btn primary" id="splitSubmit" onclick="submitSplit()">保存拆分</button>
+    </div>
+  </div>
+</div>
+
 <!-- CHAT PANEL -->
 <button class="chat-toggle" id="chatToggle" onclick="toggleChat()">
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
@@ -1122,6 +1163,17 @@ function detectChipset(model) {
   return mbMatch ? mbMatch[1] : '';
 }
 
+// order_paid 只做显示（拆单弹窗的差额段），但"没记实付"和"实付 0"是两件事：
+// 塌成 0 会谎报差额 = -合计，所以归不到有限数字就交 null 出去，由界面整段藏掉。
+function normPaid(v) {
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = parseFloat(v);
+    return isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 function parseItems(raw) {
   raw.forEach((r, i) => { r._oi = i; });
   return raw.filter(r => {
@@ -1135,6 +1187,7 @@ function parseItems(raw) {
   }).map((r, idx) => ({
     id: r._oi != null ? r._oi : idx,
     source_order_id: r.source_order_id || '',
+    order_paid: normPaid(r.order_paid),
     brand: (r.brand || '').trim(),
     model: (r.model || '').trim(),
     cost: safeFloat(r.cost),
@@ -1181,6 +1234,18 @@ let _formStamp = '';
 let _ledgerBusy = false;
 const LEDGER_BUSY_MSG = '上一条还在写入，稍等再编辑';
 
+// 表单弹窗登记表 + 唯一的"有没有表单开着"判断口径：_formStamp 是一把锁，
+// 锁的持有者只能有一份，所以开窗守卫、在途 GET 的推迟判断、回车提交都问这同一个函数。
+// 加一个新弹窗只改这一张表 —— 各写一遍 classList 判断的话，新弹窗必然从某一处漏出去。
+const FORM_MODALS = [
+  { id: 'modal', submit: 'modalSubmit' },
+  { id: 'splitModal', submit: 'splitSubmit' },
+];
+
+function openFormModal() {
+  return FORM_MODALS.find(m => document.getElementById(m.id).matches('.active')) || null;
+}
+
 // 只有版本 token 时用的头：multipart 的 Content-Type 必须留给浏览器（boundary 是它拼的）。
 // 省略参数就回落到全局版本（行内删除、弹窗关闭之后的 /api/upload 走这条）；
 // 弹窗还开着的那次提交必须显式传 _formStamp，否则旧下标会配上新版本写到另一条记录上。
@@ -1217,7 +1282,8 @@ async function loadPayload() {
   // 发起前那一刻弹窗是关的，不代表现在还是关的：这一路 GET 完全可能是在用户点开编辑之后才回来的。
   // 那时既不能换 items 也不能认这份新版本，否则表单里的旧下标会配上刚拉回来的新账本，
   // 提交时 If-Match 恰好等于服务端当前版本，守卫通过、钱写进别人那条。同步推迟到 closeModal。
-  if (document.getElementById('modal').classList.contains('active')) {
+  // 判的是"任何一份表单弹窗"：拆单弹窗开着时漏出去，等于把这条不变量重新开个新口子。
+  if (openFormModal()) {
     dirtyWhileEditing = true;
     return null;
   }
@@ -1251,7 +1317,7 @@ function showToast(msg, kind) {
 let dirtyWhileEditing = false;
 
 async function syncFromDisk() {
-  if (document.getElementById('modal').classList.contains('active')) {
+  if (openFormModal()) {
     dirtyWhileEditing = true;
     return;
   }
@@ -1433,6 +1499,13 @@ function renderBrands() {
   }).join('');
 }
 
+// 拆单挂在单条记录上：没有订单号就没有"一笔订单其实是几件硬件"这回事，后端也会 400。
+// 下标必须是 item.id（原始数组下标），items 里的位置算不出它。
+function splitActionBtn(item) {
+  if (!item.source_order_id) return '';
+  return `<button class="icon-btn" title="拆单" onclick="event.stopPropagation(); openSplitModal(${item.id})" aria-label="拆单"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></button>`;
+}
+
 function renderModels() {
   const all = items.map((i, idx) => ({ ...i, origIdx: i.id }));
   const visible = pendingOnly ? all.filter(i => !i.sell) : all;
@@ -1471,6 +1544,7 @@ function renderModels() {
       <td>
         <div class="actions">
           <button class="icon-btn" title="编辑" onclick="event.stopPropagation(); openEditModal(${i.origIdx})" aria-label="编辑"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+          ${splitActionBtn(i)}
           <button class="icon-btn danger" title="删除" onclick="event.stopPropagation(); confirmDelete(${i.origIdx}, '${esc(i.brand)} ${esc(i.model)}')" aria-label="删除"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
         </div>
       </td>
@@ -1689,6 +1763,8 @@ document.getElementById('search').addEventListener('input', e => {
 async function openAddModal() {
   // 同 openEditModal：收尾窗口期间不开新表单，否则新增也会白吃一次虚警 409。
   if (_ledgerBusy) { showToast(LEDGER_BUSY_MSG, 'err'); return; }
+  // 一把 _formStamp 只够锁一份表单：拆单弹窗开着时不许再从工具栏开一份编辑。
+  if (openFormModal()) return;
   editId = -1;
   document.getElementById('modalTitle').textContent = '新增记录';
   document.getElementById('modalSubmit').textContent = '添加';
@@ -1719,6 +1795,8 @@ async function openAddModal() {
   for (const t of window._tplCache) {
     sel.innerHTML += `<option value="${t.brand}|||${t.model}">${t.model} · ${t.brand} (${t.count}笔)</option>`;
   }
+  // 上面 await 模板列表期间拆单弹窗可能已经开了：再判一次，别把同一把锁发给两份表单。
+  if (openFormModal()) return;
   document.getElementById('modal').classList.add('active');
   // 在弹窗已经 active 之后才取锁：此后任何在途 GET 都会被 loadPayload 的弹窗守卫挡下，
   // 不会出现"表单开着、客户端认的版本偷偷变新"。
@@ -1730,6 +1808,8 @@ function openEditModal(idx) {
   // 上一条还在收尾（逐张删图/传图）时不开新表单：此刻锁到的 _ledgerStamp
   // 会被后面的写继续往前推，这份表单提交时必现一次虚警 409。
   if (_ledgerBusy) { showToast(LEDGER_BUSY_MSG, 'err'); return; }
+  // 已经有一份表单开着（编辑或拆单）就不开第二份：一把 _formStamp 锁不了两份表单。
+  if (openFormModal()) return;
   editId = idx;
   const i = items.find(x => x.id === idx);
   if (!i) return;
@@ -1761,9 +1841,16 @@ function openEditModal(idx) {
 }
 
 function closeModal() {
-  document.getElementById('modal').classList.remove('active');
+  // 一把锁对应一份表单：关窗就是一次性收干净，留下一份"开着但没锁"的表单
+  // 等于留个提交时不带 If-Match、能写错人的口子。
+  FORM_MODALS.forEach(m => document.getElementById(m.id).classList.remove('active'));
   editId = -1;
   _formStamp = '';
+  const splitRows = document.getElementById('splitRows');
+  _splitIdx = -1;
+  _splitPaid = null;
+  // 拆单输入是"按行号对齐原始下标"的，账本一换这批行就没有一条还对得上，留着只会误导。
+  splitRows.innerHTML = '';
   // 取消/点遮罩关窗就把待删的图整批丢掉：不当场写盘的语义收益就在这儿 ——
   // 没提交的删除不该已经从账本里消失。提交路径会先把队列取走再调这里。
   window._pendingImageRemovals = [];
@@ -1781,6 +1868,143 @@ async function confirmDelete(idx, label) {
   if (confirm('确认删除 「' + label + '」？\n此操作不可撤销。')) {
     await deleteItem(idx);
   }
+}
+
+// ─── SPLIT MODAL（拆单）──────────────────
+// _splitIdx 是被拆那条在裸 JSON 数组里的原始下标（item.id）。items 是 parseItems 过滤后的
+// 结果，位置和下标不是一套东西，这里错一格就是静默错账。
+let _splitIdx = -1;
+let _splitPaid = null;
+let _splitOrigCost = 0;
+
+function makeSplitRow(values) {
+  const row = document.createElement('div');
+  row.className = 'split-row';
+  const mk = (cls, placeholder, value, type) => {
+    const el = document.createElement('input');
+    el.className = cls;
+    el.placeholder = placeholder;
+    if (type) { el.type = type; el.step = '0.01'; }
+    el.value = value == null ? '' : value;
+    el.addEventListener('input', updateSplitSummary);
+    return el;
+  };
+  const brand = mk('split-brand', '品牌', values ? values.brand : '');
+  const model = mk('split-model', '型号', values ? values.model : '');
+  const cost = mk('split-cost', '买入价', values ? values.cost : '', 'number');
+  const del = document.createElement('button');
+  del.className = 'split-del';
+  del.type = 'button';
+  del.title = '删掉这一行';
+  del.textContent = '×';
+  del.addEventListener('click', () => removeSplitRow(row));
+  row.append(brand, model, cost, del);
+  return row;
+}
+
+function openSplitModal(idx) {
+  // 与编辑弹窗同一把 _formStamp：收尾窗口期间不开、也不许和另一份表单同时开着。
+  if (_ledgerBusy) { showToast(LEDGER_BUSY_MSG, 'err'); return; }
+  if (openFormModal()) return;
+  const i = items.find(x => x.id === idx);
+  if (!i || !i.source_order_id) return;
+  _splitIdx = idx;
+  _splitPaid = i.order_paid;
+  _splitOrigCost = i.cost;
+  const host = document.getElementById('splitRows');
+  // 每次开窗都按当时那份数据重建第一行：上一轮没提交的输入不留底。
+  host.innerHTML = '';
+  host.appendChild(makeSplitRow({ brand: i.brand, model: i.model, cost: i.cost }));
+  updateSplitSummary();
+  document.getElementById('splitModal').classList.add('active');
+  _formStamp = _ledgerStamp;
+  host.querySelector('.split-brand').focus();
+}
+
+function addSplitRow() {
+  const host = document.getElementById('splitRows');
+  // 追加行不预填：留空就是"这一栏让后端按默认处理"，抄一份过来等于把金额翻倍。
+  host.appendChild(makeSplitRow(null));
+  updateSplitSummary();
+  host.lastChild.querySelector('.split-brand').focus();
+}
+
+function removeSplitRow(row) {
+  const host = document.getElementById('splitRows');
+  if (host.children.length <= 1) return;
+  host.removeChild(row);
+  updateSplitSummary();
+}
+
+// 每行买入价：留空 = 请求体里干脆不带 cost，由后端按"第一项保留原值、追加项 0"处理。
+// 合计按同一条规则算，否则屏幕上那个数跟落盘的数对不上。
+function readSplitRows() {
+  return Array.prototype.map.call(document.getElementById('splitRows').children, (row, n) => {
+    const text = row.querySelector('.split-cost').value.trim();
+    const parsed = parseFloat(text);
+    const blank = text === '';
+    return {
+      brand: row.querySelector('.split-brand').value.trim(),
+      model: row.querySelector('.split-model').value.trim(),
+      bad: !blank && !isFinite(parsed),
+      cost: blank ? (n === 0 ? _splitOrigCost : 0) : parsed,
+      sent: blank ? null : parsed,
+    };
+  });
+}
+
+function updateSplitSummary() {
+  const host = document.getElementById('splitRows');
+  const rows = readSplitRows();
+  const total = rows.reduce((s, r) => s + (isFinite(r.cost) ? r.cost : 0), 0);
+  // 只剩一行时没什么可删：拆单至少要两行，删空只会换来一次注定被拒的提交。
+  const keepOne = host.children.length <= 1;
+  host.querySelectorAll('.split-del').forEach(btn => { btn.disabled = keepOne; });
+  document.getElementById('splitTotals').textContent =
+    '合计买入价 ¥' + fmt(total) + ' · ' + rows.length + ' 行';
+  const paid = document.getElementById('splitPaid');
+  // 账本里现在一条 order_paid 都没有（那是后续任务才补的）：拿不到就整段不显示，
+  // 照抄公式只会长期挂着一个 ¥NaN。
+  if (_splitPaid === null) {
+    paid.style.display = 'none';
+    paid.textContent = '';
+    return;
+  }
+  const delta = total - _splitPaid;
+  paid.style.display = '';
+  paid.textContent = '订单实付 ¥' + fmt(_splitPaid) + ' · 差额 ¥' + fmt(delta);
+  paid.classList.toggle('warn', delta !== 0);
+}
+
+async function submitSplit() {
+  if (_splitIdx < 0) return;
+  const rows = readSplitRows();
+  // 至少两行才叫拆分：单行"拆分"占一次写盘、还会把这条记录的订单上下文复制给新行，
+  // 只想改一条的话行内编辑才是那条路。
+  if (rows.length < 2) { showToast('至少 2 行才叫拆分，只改这一条请用行内编辑', 'err'); return; }
+  const parts = [];
+  for (const row of rows) {
+    if (!row.brand || !row.model) { showToast('每一行的品牌和型号都不能为空', 'err'); return; }
+    if (row.bad) { showToast('买入价要么留空、要么写成数字', 'err'); return; }
+    const part = { brand: row.brand, model: row.model };
+    if (row.sent !== null) part.cost = row.sent;
+    parts.push(part);
+  }
+  const res = await fetch('/api/split_record', {
+    method: 'POST',
+    headers: writeHeaders(_formStamp),
+    body: JSON.stringify({ idx: _splitIdx, parts: parts })
+  });
+  // 分支只按 status：后端文案是给人看的，不是契约。409 一律丢弃输入重拉，不重试不回填。
+  if (res.status === 409) return await handleConflict();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { showToast('拆分失败：' + (data.error || ('HTTP ' + res.status)), 'err'); return; }
+  // 先关窗清锁再重读：挂窗口时 loadPayload 的守卫会把这次重读推迟掉。
+  closeModal();
+  await fetchItems();
+  window._tplCache = null;
+  const n = Array.isArray(data.indices) ? data.indices.length : parts.length;
+  showToast('已拆成 ' + n + ' 条');
 }
 
 document.getElementById('modalSubmit').addEventListener('click', async () => {
@@ -1869,11 +2093,15 @@ document.getElementById('modal').addEventListener('click', e => {
   if (e.target === document.getElementById('modal')) closeModal();
 });
 
+document.getElementById('splitModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('splitModal')) closeModal();
+});
+
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeModal();
-  if (e.key === 'Enter' && document.getElementById('modal').classList.contains('active')) {
-    document.getElementById('modalSubmit').click();
-  }
+  // 同一时刻只会有一份表单开着（开窗前的互斥守卫保证），所以回车只需要问一次"开着的是谁"。
+  const open = openFormModal();
+  if (e.key === 'Enter' && open) document.getElementById(open.submit).click();
 });
 
 // ─── TEMPLATE & PRICE HINT ──────────────

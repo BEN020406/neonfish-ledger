@@ -1249,7 +1249,8 @@ def test_wrap_up_window_blocks_reopening_and_clears_in_finally():
         "置位必须排在收窗之前：晚一步用户就能在中间点开一份会吃到假 409 的表单"
     assert re.search(r"finally\s*\{[\s\S]*?_ledgerBusy = false", wrap), \
         "_ledgerBusy 没在 finally 里清，收尾中途抛异常会把页面永久锁死"
-    for header in ("async function openAddModal()", "function openEditModal(", "async function confirmDelete("):
+    for header in ("async function openAddModal()", "function openEditModal(",
+                   "async function confirmDelete(", "function openSplitModal("):
         assert "_ledgerBusy" in _top_level_fn(src, header), "%s 少了收尾窗口的守卫" % header
 
 
@@ -1269,3 +1270,145 @@ def test_pending_image_removals_carry_and_recheck_identity():
         "身份核对被删掉了：外部增删之后这一刀会静默作用到别的记录上"
     assert wrap.index("items.find(x => x.id === job.idx)") < wrap.index("method: 'DELETE'"), \
         "复核必须排在发 DELETE 之前"
+
+
+# ─── 拆单弹窗：前端契约（同样沿用本文件的源码静态扫描风格）───
+
+SPLIT_OPEN = "function openSplitModal(idx)"
+SPLIT_SUBMIT = "async function submitSplit()"
+SPLIT_FETCH = "fetch('/api/split_record'"
+
+
+def test_split_submit_locks_the_form_version_and_the_original_index():
+    """拆单提交带的是弹窗自己那份版本，idx 带的是原始下标。
+
+    回落到全局 _ledgerStamp 等于让"这份表单依据的版本"和"客户端最新读到的版本"混为一谈；
+    items 的位置更不能当 API 下标用 —— parseItems 把 brand/model 全空的行过滤掉了。
+    """
+    src = _index_js()
+    submit = _top_level_fn(src, SPLIT_SUBMIT)
+    assert SPLIT_FETCH in submit, "submitSplit 不再打 /api/split_record"
+    assert "writeHeaders(_formStamp)" in submit, "拆单提交没带表单自己锁住的那份版本"
+    assert "_ledgerStamp" not in submit, "提交路径绕过 _formStamp 直接读全局版本"
+    assert "idx: _splitIdx" in submit, "请求体里的 idx 不是弹窗打开时认准的那个原始下标"
+
+    opener = _top_level_fn(src, SPLIT_OPEN)
+    assert "items.find(x => x.id === idx)" in opener, "openSplitModal 不按 item.id 找记录，改用过滤后位置了"
+    assert "_splitIdx = idx" in opener, "_splitIdx 没被赋成原始下标"
+    assert "items.indexOf(" not in opener and "items.length - 1" not in opener, \
+        "拆单又拿 items 的位置当 API 下标用"
+    # 锁版本必须排在弹窗 active 之后：反过来的话，中间回来的在途 GET 会把版本推新而表单不知情。
+    assert opener.index("classList.add('active')") < opener.index("_formStamp = _ledgerStamp"), \
+        "先锁版本再开窗，在途 GET 能把这份锁作废"
+
+
+def test_split_conflict_path_reuses_the_single_409_policy():
+    """拆单的 409 走那份唯一策略：丢弃输入、重拉、提示，不回填也不重试。
+
+    自己另写一份"把行内容留着再问一次"就是请用户确认一份错数据 —— 旧下标在新账本里
+    可能已经指向另一条记录。分支只许按 res.status，error 文案不是契约。
+    """
+    src = _index_js()
+    submit = _top_level_fn(src, SPLIT_SUBMIT)
+    assert "if (res.status === 409) return await handleConflict();" in submit, \
+        "409 没走统一的 handleConflict，或者调用形状被改了"
+    assert "CONFLICT_" not in submit, "拆单自己复制了一份冲突文案"
+    assert re.search(r"res\.status\s*!==\s*409", submit) or "!res.ok" in submit, \
+        "非 200 分支不再按 status 判，改成拿 error 文案当分支了"
+    assert "data.error" in submit or "body.error" in submit, "非 200 时没把后端文案透出来"
+    # 成功那一路：先关窗清锁再重读，否则 loadPayload 的弹窗守卫会把这次重读吞掉。
+    assert submit.index("closeModal()") < submit.index("await fetchItems()"), \
+        "成功后先重读再关窗，这次重读会被弹窗守卫拒掉、版本停在旧的一代"
+    assert "indices.length" in submit, "toast 的行数不再取自响应的 indices"
+
+    closer = _top_level_fn(src, "function closeModal()")
+    assert "splitRows.innerHTML = ''" in closer and "_splitIdx = -1" in closer, \
+        "关窗不清空拆单输入：409 之后旧行内容会假装成新账本下重新编辑好的"
+
+
+def test_split_entry_appears_only_on_imported_model_rows():
+    """「拆单」只在带 source_order_id 的型号明细行出现，且全页只此一个入口。
+
+    没有订单号就没有"一笔订单其实是几件硬件"这回事，后端也会直接 400；
+    编辑弹窗里再加一个入口会静默丢掉用户正在编辑还没保存的内容。
+    """
+    src = _index_js()
+    helper = _top_level_fn(src, "function splitActionBtn(item)")
+    assert re.search(r"if \(!item\.source_order_id\) return '';", helper), \
+        "拆单入口不再只对带 source_order_id 的记录出现"
+    assert "openSplitModal(${item.id})" in helper, "入口传的不是 item.id（原始下标）"
+    assert "splitActionBtn(i)" in _top_level_fn(src, "function renderModels()"), \
+        "renderModels 的行操作区不再挂拆单入口"
+    assert src.count("onclick=\"event.stopPropagation(); openSplitModal(") == 1, \
+        "拆单入口不止一个了：编辑弹窗里再挂一个会吞掉未保存的编辑"
+
+
+def test_form_modal_open_guard_is_one_predicate_covering_the_split_modal():
+    """"有没有表单弹窗开着"只有一个判断口径，且它认得拆单弹窗。
+
+    各写一遍 classList.contains('active') 的话，新弹窗必然从其中一处漏出去：
+    拆单弹窗开着时在途 GET 照样换掉 items、刷新 _ledgerStamp，旧下标配新版本又回来了。
+    """
+    src = _index_js()
+    assert src.count(".matches('.active')") == 1, "弹窗开合的判断被抄成了多份"
+    predicate = _top_level_fn(src, "function openFormModal()")
+    assert ".matches('.active')" in predicate, "唯一那份判断不在 openFormModal 里"
+    registry = src[src.index("const FORM_MODALS"):src.index("];", src.index("const FORM_MODALS"))]
+    assert "'modal'" in registry and "'splitModal'" in registry, \
+        "弹窗登记表漏了一个，守卫又会只认得其中一个"
+    assert not re.search(r"getElementById\('(modal|splitModal)'\)\.classList\.contains\('active'\)", src), \
+        "又出现了绕过统一判断、自己问 #modal 要不要算开着的写法"
+    for header in ("async function loadPayload()", "async function syncFromDisk()"):
+        assert "openFormModal()" in _top_level_fn(src, header), \
+            "%s 不再走统一判断，弹窗开着时它照样会换 items / 刷新版本" % header
+    for header in ("async function openAddModal()", "function openEditModal(", SPLIT_OPEN):
+        guard = _top_level_fn(src, header)
+        assert "if (openFormModal()) return;" in guard, \
+            "%s 没有互斥守卫：一把 _formStamp 同时锁两份表单，必有一份提交到错版本" % header
+
+    closer = _top_level_fn(src, "function closeModal()")
+    assert "FORM_MODALS.forEach" in closer, "关窗不再统一收掉所有表单弹窗，会留下一份开着却没了锁的表单"
+
+
+def test_split_local_validation_blocks_one_row_and_blank_parts():
+    """本地校验排在写请求之前：至少两行才叫拆分，每行品牌型号非空。
+
+    只改一条该走行内编辑 —— 单行"拆分"会白占一次写盘还把 sell/配件清成新的追加项；
+    空品牌型号后端必 400，先在页面上说清楚，别让请求跑一趟。
+    """
+    src = _index_js()
+    submit = _top_level_fn(src, SPLIT_SUBMIT)
+    assert SPLIT_FETCH in submit
+    assert re.search(r"if \(rows\.length < 2\)", submit), "少了“至少两行”的本地校验"
+    assert "行内编辑" in submit, "单行时没告诉用户改走行内编辑"
+    assert submit.index("rows.length < 2") < submit.index(SPLIT_FETCH), "校验必须排在写请求之前"
+    assert "!row.brand || !row.model" in submit and submit.index("!row.brand || !row.model") < submit.index(SPLIT_FETCH), \
+        "空品牌/空型号没在本地拦住"
+    # 只剩一行时删行按钮必须禁掉：删到 0 行再提交就是一趟注定 400 的请求。
+    summary = _top_level_fn(src, "function updateSplitSummary()")
+    assert re.search(r"children\.length <= 1", summary) and "disabled" in summary, \
+        "删到只剩一行不再禁删按钮"
+    for header in ("function addSplitRow()", "function removeSplitRow("):
+        assert "updateSplitSummary()" in _top_level_fn(src, header), "%s 改完行没刷新合计" % header
+
+
+def test_split_paid_delta_stays_hidden_without_order_paid():
+    """拿不到 order_paid 时"订单实付 / 差额"整段不显示。
+
+    真实账本 255 条里一条 order_paid 都没有（那是后续任务才补的），
+    这段要是照抄公式就会长期挂着 ¥NaN / ¥undefined，或者谎报"差额 = -合计"。
+    """
+    src = _index_js()
+    parse = _top_level_fn(src, "function parseItems(raw)")
+    assert "order_paid: normPaid(r.order_paid)" in parse, \
+        "parseItems 不再用 normPaid 归一 order_paid，缺失值会塌成 0"
+    norm = _top_level_fn(src, "function normPaid(v)")
+    assert "return null" in norm and "isFinite" in norm, \
+        "normPaid 不再把空串/非数字归成 null，0 和“没记实付”就分不开了"
+    summary = _top_level_fn(src, "function updateSplitSummary()")
+    assert "_splitPaid === null" in summary and "display = 'none'" in summary, \
+        "没有 order_paid 时差额段不再整段隐藏"
+    assert summary.index("_splitPaid === null") < summary.index("订单实付"), \
+        "隐藏判断排到了拼装之后，等于先算一遍 NaN 再藏起来"
+    assert "¥${fmt(_splitPaid)}" in summary or "fmt(_splitPaid)" in summary, \
+        "差额段干脆不显示实付/差额了"
