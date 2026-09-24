@@ -39,6 +39,10 @@ HTML_FILE = os.path.join(BUNDLE_DIR, 'index.html')
 IMAGES_DIR = os.path.join(APP_DIR, 'images')
 os.makedirs(IMAGES_DIR, exist_ok=True)
 
+# 闲鱼订单上下文：只有导入路径会带这四个键，手动记账的 body 里一个都不该出现。
+# 新增/更新两个写入端点和测试都读这一个常量，避免清单在某一侧悄悄漂移。
+ORDER_CONTEXT_KEYS = ('source_order_id', 'order_date', 'item_title', 'order_paid')
+
 
 # ─── Data helpers ───
 
@@ -57,13 +61,20 @@ def save_data(data):
     os.replace(tmp, DATA_FILE)
 
 
-def _to_float(value, default=0.0):
+def _money(value):
+    """严格解析金额：空/None -> 0.0，数字 -> float，其他一律 None（调用方必须拒绝，别当成 0）。"""
     if value in (None, ""):
-        return default
+        return 0.0
     try:
         return float(value)
     except (TypeError, ValueError):
-        return default
+        return None
+
+
+def _to_float(value, default=0.0):
+    """宽松版本，只给读取路径（利润统计等）用；写入路径走 _money + 400。"""
+    parsed = _money(value)
+    return default if parsed is None else parsed
 
 
 def _norm_price(value):
@@ -335,8 +346,9 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         if parsed.path.startswith('/api/data/'):
             parts = parsed.path.split('/')
             if len(parts) == 4:
-                idx = int(parts[3])
-                self.handle_update_record(idx)
+                idx = self.read_index(parts)
+                if idx is not None:
+                    self.handle_update_record(idx)
             else:
                 self.send_json({'ok': False, 'error': 'invalid path'}, 400)
         else:
@@ -349,12 +361,13 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         if path.startswith('/api/data/'):
             parts = path.split('/')
             if len(parts) == 4:
-                idx = int(parts[3])
-                self.handle_delete_record(idx)
+                idx = self.read_index(parts)
+                if idx is not None:
+                    self.handle_delete_record(idx)
             elif len(parts) == 6 and parts[4] == 'images':
-                idx = int(parts[3])
-                filename = parts[5]
-                self.handle_delete_image(idx, filename)
+                idx = self.read_index(parts)
+                if idx is not None:
+                    self.handle_delete_image(idx, parts[5])
             else:
                 self.send_json({'ok': False, 'error': 'invalid path'}, 400)
         else:
@@ -362,24 +375,34 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
 
     # ─── Record CRUD ───
 
+    def reject_bad_money(self, body):
+        """已发送但既非空串也非数字的 cost/sell 直接 400，一条都不写盘。返回 True 表示已回复。"""
+        for key in ('cost', 'sell'):
+            if key in body and _money(body[key]) is None:
+                self.send_json({'ok': False, 'error': 'invalid %s: %r' % (key, body[key])}, 400)
+                return True
+        return False
+
     def handle_add_record(self):
         body = self.read_body()
         if not body:
             self.send_json({'ok': False, 'error': 'empty body'}, 400)
             return
+        if self.reject_bad_money(body):
+            return
         data = load_data()
         record = {
             'brand': body.get('brand', ''),
             'model': body.get('model', ''),
-            'cost': _to_float(body.get('cost', 0)),
-            'sell': _to_float(body.get('sell', 0)),
+            'cost': _money(body.get('cost', '')),
+            'sell': _money(body.get('sell', '')),
             'sn': body.get('sn', ''),
             'accessory': body.get('accessory', ''),
             'accessory_price': _norm_price(body.get('accessory_price', '')),
             'extra_price': _norm_price(body.get('extra_price', '')),
             'images': body.get('images', []),
         }
-        for key in ('source_order_id', 'order_date', 'item_title', 'order_paid'):
+        for key in ORDER_CONTEXT_KEYS:
             if key in body:
                 record[key] = body[key]
         data.append(record)
@@ -395,16 +418,18 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         if not (0 <= idx < len(data)):
             self.send_json({'ok': False, 'error': 'index out of range'}, 404)
             return
+        if self.reject_bad_money(body):
+            return
         r = data[idx]
         r['brand'] = body.get('brand', r.get('brand', ''))
         r['model'] = body.get('model', r.get('model', ''))
-        r['cost'] = _to_float(body['cost']) if 'cost' in body else r.get('cost', 0)
-        r['sell'] = _to_float(body['sell']) if 'sell' in body else r.get('sell', 0)
+        r['cost'] = _money(body['cost']) if 'cost' in body else r.get('cost', 0)
+        r['sell'] = _money(body['sell']) if 'sell' in body else r.get('sell', 0)
         r['sn'] = body.get('sn', r.get('sn', ''))
         r['accessory'] = body.get('accessory', r.get('accessory', ''))
         r['accessory_price'] = _norm_price(body.get('accessory_price', r.get('accessory_price', '')))
         r['extra_price'] = _norm_price(body.get('extra_price', r.get('extra_price', '')))
-        for key in ('source_order_id', 'order_date', 'item_title', 'order_paid'):
+        for key in ORDER_CONTEXT_KEYS:
             if key in body:
                 r[key] = body[key]
         if 'images' in body:
@@ -545,11 +570,26 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
 
     # ─── HTTP helpers ───
 
+    def read_index(self, parts):
+        """路径里的记录下标；不是整数就自己发出 400 并返回 None，让调用方跳过派发。"""
+        try:
+            return int(parts[3])
+        except ValueError:
+            self.send_json({'ok': False, 'error': 'invalid index %r' % parts[3]}, 400)
+            return None
+
     def read_body(self):
+        """请求体里的 JSON 对象；坏 JSON 或不是对象的 JSON 都返回 None，让调用方回 400。"""
         length = int(self.headers.get('Content-Length', 0))
         if length > 0:
             raw = self.rfile.read(length)
-            return json.loads(raw.decode('utf-8'))
+            try:
+                body = json.loads(raw.decode('utf-8'))
+            except ValueError:
+                # 坏 JSON 也要正常回 400，不能让异常把连接掐断（调用方按空 body 处理）。
+                return None
+            # 数组/数字这类合法但非对象的 JSON 同样会让 body.get 抛 AttributeError。
+            return body if isinstance(body, dict) else None
         return None
 
     def send_json(self, data, status=200):
