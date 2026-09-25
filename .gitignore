@@ -1,5 +1,5 @@
-# ─── Ledger data & local backups (real money records, never versioned) ───
-/data.json
+# ─── Ledger local backups & derived state（data.json 本体已移出忽略、纳入版本管理）───
+# .bak 是后端每次写盘自刷新的单代备份，跟着变进历史只会是噪音；images/ 是二进制照片，单独决定
 /data.json.bak
 /data_backup.json
 /ledger.db
