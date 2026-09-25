@@ -297,8 +297,8 @@ def test_rejects_merge_that_crosses_category(sandbox):
     assert any("品类" in e for e in errors(catalog, p))
 
 
-def test_allows_merge_when_rules_cannot_classify_either_side(sandbox):
-    """两边都认不出时不能拦 —— 那正是人工要处理的那批，拦死就没法合并了。"""
+def test_allows_merge_when_one_side_is_unclassifiable(sandbox):
+    """只有一边判不出时不能拦 —— 这条专门防住把规则 6 放宽成"一边 None 就拒绝"。"""
     catalog = json.load(open(sandbox, encoding="utf-8"))
     catalog["parts"].append({"cat": "unknown", "brand": "微星",
                              "name": "维修返场一次", "aliases": []})
