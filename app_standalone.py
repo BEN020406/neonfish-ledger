@@ -45,6 +45,12 @@ os.makedirs(IMAGES_DIR, exist_ok=True)
 # 新增/更新两个写入端点和测试都读这一个常量，避免清单在某一侧悄悄漂移。
 ORDER_CONTEXT_KEYS = ('source_order_id', 'order_date', 'item_title', 'order_paid')
 
+# cat 是迁移写进记录的品类快照。它必须和订单上下文一样在新增/编辑/拆单三条路上
+# 原样透传，否则「品类待确认」会在用户下一次随手保存时凭空变少 —— 那种丢失没有报错。
+# 三条路共用这一张表：各写一份清单的话，总有一条会先漏掉某个键。
+CAT_KEY = 'cat'
+LEDGER_META_KEYS = ORDER_CONTEXT_KEYS + (CAT_KEY,)
+
 
 # ─── Data helpers ───
 
@@ -102,6 +108,9 @@ CATALOG_CATEGORIES = [
     {'key': 'bundle', 'name': '板U套装'},
     {'key': 'unknown', 'name': '待确认'},
 ]
+
+# 记录上的 cat 只认这 8 个 key（写在 CATALOG_CATEGORIES 之后，否则模块级引用报 NameError）。
+VALID_CAT_KEYS = frozenset(c['key'] for c in CATALOG_CATEGORIES)
 
 CATALOG_FILE = os.path.join(APP_DIR, 'catalog.json')
 
@@ -571,6 +580,23 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
                 return True
         return False
 
+    def reject_bad_cat(self, body):
+        """cat 只认 §3 的 8 个 key；缺失、空串、null 同等对待（落「品类待确认」）。返回 True 表示已回复。
+
+        脏值既不能静默吞掉也不能落盘：落成「主板」这种中文名，前端按 key 分组时
+        它自成一类，统计里多出一个永远点不到的桶，而账本已经写进去了。
+        成员判断必须先确认是字符串：frozenset 碰到 list/dict 直接抛 TypeError，
+        连接被打断后前端只剩一句没有原因的保存失败。
+        """
+        if 'cat' not in body:
+            return False
+        value = body['cat']
+        if value in ('', None) or (isinstance(value, str) and value in VALID_CAT_KEYS):
+            return False
+        self.send_json({'ok': False, 'error': 'bad cat',
+                        'cats': sorted(VALID_CAT_KEYS)}, 400)
+        return True
+
     def handle_add_record(self):
         body = self.read_body()
         if not body:
@@ -591,6 +617,8 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             return
         if self.reject_bad_images(body):
             return
+        if self.reject_bad_cat(body):
+            return
         record = {
             'brand': body.get('brand', ''),
             'model': body.get('model', ''),
@@ -602,7 +630,7 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             'extra_price': _norm_price(body.get('extra_price', '')),
             'images': body.get('images', []),
         }
-        for key in ORDER_CONTEXT_KEYS:
+        for key in LEDGER_META_KEYS:
             if key in body:
                 record[key] = body[key]
         data.append(record)
@@ -635,6 +663,8 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             return
         if self.reject_bad_images(body):
             return
+        if self.reject_bad_cat(body):
+            return
         r = data[idx]
         r['brand'] = body.get('brand', r.get('brand', ''))
         r['model'] = body.get('model', r.get('model', ''))
@@ -644,7 +674,7 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
         r['accessory'] = body.get('accessory', r.get('accessory', ''))
         r['accessory_price'] = _norm_price(body.get('accessory_price', r.get('accessory_price', '')))
         r['extra_price'] = _norm_price(body.get('extra_price', r.get('extra_price', '')))
-        for key in ORDER_CONTEXT_KEYS:
+        for key in LEDGER_META_KEYS:
             if key in body:
                 r[key] = body[key]
         if 'images' in body:
@@ -716,7 +746,7 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'ok': False, 'error': 'record must have a source_order_id'}, 400)
             return
 
-        context = {key: record[key] for key in ORDER_CONTEXT_KEYS if key in record}
+        context = {key: record[key] for key in LEDGER_META_KEYS if key in record}
         updates[0].setdefault('cost', record.get('cost', 0))
         record.update(updates[0])
         indices = [idx]

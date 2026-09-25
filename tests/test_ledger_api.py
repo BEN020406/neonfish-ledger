@@ -1464,3 +1464,120 @@ def _read_catalog_json():
     import json
     with open(Path(__file__).resolve().parent.parent / "catalog.json", encoding="utf-8") as f:
         return json.load(f)
+
+
+# ─── P3 Task 6：cat 在三条写路径上不丢 ───
+
+def _seed_cats(api, cats):
+    """把 cat 直接写进沙盒账本，模拟迁移落盘之后的状态。
+
+    不能用写端点造这份数据：POST /api/data 是「新增一条」，不是整份替换，
+    发一份数组只会往沙盒里追加一条脏记录。
+    """
+    _, load, path = api
+    records = load()
+    for idx, value in cats.items():
+        records[idx]["cat"] = value
+    Path(path).write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+
+
+def test_ledger_meta_key_list_is_the_agreed_five():
+    """三条写路径共用一张元数据键表，清单不许在各处各写一份。
+
+    和 ORDER_CONTEXT_KEYS 同理：跟着常量断言查不出常量被改窄，所以再用字面量钉一次。
+    """
+    from app_standalone import LEDGER_META_KEYS
+
+    assert set(LEDGER_META_KEYS) == AGREED_ORDER_KEYS | {"cat"}
+    assert len(LEDGER_META_KEYS) == 5, "有重复键，写入循环会覆盖"
+
+
+def test_cat_survives_update_and_split(api):
+    """迁移写进记录的 cat 不能被一次普通编辑或一次拆单抹掉。
+
+    抹掉的后果不是报错，是「品类待确认」的数量在下一次保存后莫名变少。
+    """
+    call, load, _ = api
+    _seed_cats(api, {0: "board", 1: "ram"})
+
+    # 编辑第 0 条的售价：盘上的 cat 必须还在
+    status, body = call("PUT", "/api/data/0", {"brand": "微星", "model": "B650M GAMING WIFI",
+                                               "cost": "600", "sell": "950"})
+    assert status == 200, body
+    assert load()[0].get("cat") == "board", "一次普通编辑就把 cat 抹了"
+
+    # 编辑也能显式改品类：客户端发的合法 cat 必须写进去（透传是双向的）
+    status, body = call("PUT", "/api/data/0", {"cat": "ssd"})
+    assert status == 200, body
+    assert load()[0]["cat"] == "ssd", "改品类这件事在编辑路径上静默失效"
+
+    # 拆单：派生出的新行继承 cat。只有第 1 条带 source_order_id，拆单只认它。
+    status, body = call("POST", "/api/split_record", {"idx": 1, "parts": [
+        {"brand": "光威", "model": "神策 16G×2", "cost": "100"},
+        {"brand": "十铨", "model": "Delta 16G", "cost": "100"},
+    ]})
+    assert status == 200, body
+    records = load()
+    assert records[body["indices"][0]].get("cat") == "ram", "拆完原记录的 cat 没了"
+    assert records[body["indices"][1]].get("cat") == "ram", \
+        "拆出来的新行没继承 cat，新行会凭空落「品类待确认」"
+
+
+def test_add_record_accepts_cat_when_client_sends_it(api):
+    call, load, _ = api
+    status, body = call("POST", "/api/data", {"brand": "光威", "model": "神策 16G",
+                                              "cost": "200", "sell": "", "cat": "ram"})
+    assert status == 200, body
+    assert load()[body["index"]].get("cat") == "ram", "固定字段表把客户端发的 cat 丢了"
+
+    # 空串与缺失同等对待：都是「品类待确认」，不是 400
+    status, body = call("POST", "/api/data", {"brand": "光威", "model": "神策 8G",
+                                              "cost": "100", "sell": "", "cat": ""})
+    assert status == 200, body
+    assert load()[body["index"]].get("cat") == ""
+
+
+def test_add_record_rejects_unknown_cat(api):
+    """cat 只认 §3 那 8 个 key：非法值既不能静默吞掉，也不能落脏值。"""
+    call, load, _ = api
+    before = load()
+    status, body = call("POST", "/api/data", {"brand": "光威", "model": "X",
+                                              "cost": "1", "sell": "", "cat": "主板"})
+    assert status == 400, body
+    assert body["ok"] is False and "cat" in body["error"], body
+    assert load() == before, "回 400 之前已经写盘了"
+
+
+def test_update_record_rejects_unknown_cat(api):
+    """cat 一旦能在编辑路径上透传，编辑路径就必须同样认这份白名单。
+
+    只挡新增的话，PUT 就是那条能把脏品类写进账本的侧门。
+    """
+    call, load, _ = api
+    _seed_cats(api, {0: "board"})
+    status, body = call("PUT", "/api/data/0", {"cat": "内存条"})
+    assert status == 400, body
+    assert load()[0]["cat"] == "board", "非法 cat 已经落盘"
+
+
+# 脏值不止「中文名」这一种形状。大小写也是脏的：8 个 key 就是那 8 个 key，
+# BOARD 落不进任何一桶，和「主板」一样会在统计里凭空多一类。
+BAD_CAT_SHAPES = ["主板", "BOARD", 0, ["ram"], {"key": "board"}]
+
+
+@pytest.mark.parametrize("bad", BAD_CAT_SHAPES, ids=[repr(v) for v in BAD_CAT_SHAPES])
+def test_both_cat_write_paths_reject_every_illegal_shape(api, bad):
+    """非字符串的 cat 也必须是 400，不能让 handler 抛 TypeError 把连接打断。
+
+    白名单判断写成 `value in VALID_CAT_KEYS` 时，list/dict 这种不可哈希的值会直接炸在
+    成员判断上：账本倒是没写坏，但前端拿到的是断连，用户看到的是一句没有原因的保存失败。
+    """
+    call, load, _ = api
+    before = load()
+    status, body = call("POST", "/api/data", {"brand": "光威", "model": "X",
+                                              "cost": "1", "sell": "", "cat": bad})
+    assert status == 400, body
+    assert body["ok"] is False and "cat" in body["error"], body
+    status, body = call("PUT", "/api/data/0", {"cat": bad})
+    assert status == 400, body
+    assert load() == before, "非法 cat 已经落盘"
