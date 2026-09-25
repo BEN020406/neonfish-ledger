@@ -98,7 +98,10 @@ def api_catalog(monkeypatch, api, tmp_path):
     path = tmp_path / "catalog.json"
     path.write_text(json.dumps({"version": 1,
                                 "categories": [dict(c) for c in app_standalone.CATALOG_CATEGORIES],
-                                "brands": [], "parts": []}, ensure_ascii=False), encoding="utf-8")
+                                # brands 必须带上：凯侠→铠侠 这类归一靠的就是这张表，
+                                # 播种成空列表等于把被测契约抹掉了。
+                                "brands": [dict(b) for b in FIXTURE["brands"]],
+                                "parts": []}, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(app_standalone, "CATALOG_FILE", str(path))
     return call, path
 
@@ -121,3 +124,67 @@ def test_get_catalog_without_file_is_200_and_empty_stamp(monkeypatch, api, tmp_p
     assert status == 200
     assert body["parts"] == []
     assert headers["X-Catalog-Stamp"] == ""
+
+
+def _upsert(call, payload, if_match=None):
+    # with_headers 是必须的：下面几条测试按 (status, body, headers) 三元组解包
+    return call("POST", "/api/catalog/upsert", payload, if_match=if_match, with_headers=True)
+
+
+def test_upsert_creates_part_and_brand(api_catalog):
+    call, path = api_catalog
+    status, body, _ = _upsert(call, {"brand": "微星", "name": "B850M GAMING PLUS", "cat": "board"})
+    assert status == 200 and body["ok"] is True
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    assert [p["name"] for p in saved["parts"]] == ["B850M GAMING PLUS"]
+    assert saved["parts"][0]["brand"] == "微星"
+    assert {b["canonical"] for b in saved["brands"]} >= {"微星"}
+
+
+def test_upsert_applies_brand_alias_and_appends_new_aliases(api_catalog):
+    call, path = api_catalog
+    _upsert(call, {"brand": "凯侠", "name": "VD10 1TB", "cat": "ssd", "aliases": ["vd10 1t"]})
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    part = saved["parts"][0]
+    assert part["brand"] == "铠侠"            # 走 brands 别名归一后落库
+    assert part["aliases"] == ["vd10 1t"]
+
+
+def test_upsert_rename_pushes_old_name_into_aliases(api_catalog):
+    call, path = api_catalog
+    _upsert(call, {"brand": "微星", "name": "B650M-B", "cat": "board"})
+    status, _, _ = _upsert(call, {"brand": "微星", "old_name": "B650M-B", "name": "B650M BOMBER", "cat": "board"})
+    assert status == 200
+    part = json.loads(path.read_text(encoding="utf-8"))["parts"][0]
+    assert part["name"] == "B650M BOMBER"
+    assert "B650M-B" in part["aliases"]      # 历史记录还能归并过来
+
+
+def test_upsert_rejects_unknown_cat(api_catalog):
+    call, path = api_catalog
+    status, body, _ = _upsert(call, {"brand": "微星", "name": "X", "cat": "sound"})
+    assert status == 400 and "cats" in body
+    assert json.loads(path.read_text(encoding="utf-8"))["parts"] == []   # 一条都不写
+
+
+def test_upsert_requires_brand_and_name(api_catalog):
+    call, _ = api_catalog
+    assert _upsert(call, {"brand": "", "name": "B", "cat": "board"})[0] == 400
+    assert _upsert(call, {"brand": "微星", "name": "  ", "cat": "board"})[0] == 400
+
+
+def test_upsert_honours_if_match_and_allows_absent(api_catalog):
+    call, path = api_catalog
+    _upsert(call, {"brand": "微星", "name": "A", "cat": "board"})
+    stale = "0-deadbeef"
+    status, body, _ = _upsert(call, {"brand": "微星", "name": "B", "cat": "board"}, if_match=stale)
+    assert status == 409 and body["ok"] is False
+    fresh = app_standalone.catalog_stamp()
+    status, _, _ = _upsert(call, {"brand": "微星", "name": "B", "cat": "board"}, if_match=fresh)
+    assert status == 200                      # If-Match 缺席放行（导入页与 agent 不知道版本）
+
+
+def test_upsert_accepts_bad_json_as_400(api_catalog):
+    call, _ = api_catalog
+    status, _, _ = call("POST", "/api/catalog/upsert", raw_body=b"{not json", with_headers=True)
+    assert status == 400

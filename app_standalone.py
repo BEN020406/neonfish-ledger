@@ -492,6 +492,8 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
 
         if path == '/api/data':
             self.handle_add_record()
+        elif path == '/api/catalog/upsert':
+            self.handle_catalog_upsert()
         elif path == '/api/split_record':
             self.handle_split_record()
         elif path == '/api/chat':
@@ -724,6 +726,63 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_write_conflict()
             return
         self.send_json({'ok': True, 'indices': indices, 'order_paid': record.get('order_paid', '')})
+
+    def handle_catalog_upsert(self):
+        """新增或就地改一条 part。整批一次写盘：任何校验不过都一条都不写。
+
+        old_name 是改名的痕迹 —— 旧规范名自动进 aliases，否则历史记录瞬间归并不上，
+        品牌总览会凭空多出一行。
+        """
+        body = self.read_body()
+        if body is None:
+            self.send_json({'ok': False, 'error': 'invalid json body'}, 400)
+            return
+        brand = (body.get('brand') or '').strip()
+        name = (body.get('name') or '').strip()
+        cat = (body.get('cat') or '').strip()
+        if not brand or not name:
+            self.send_json({'ok': False, 'error': 'brand and name are required'}, 400)
+            return
+        known = [c['key'] for c in CATALOG_CATEGORIES]
+        if cat not in known:
+            self.send_json({'ok': False, 'error': 'unknown cat %r' % cat, 'cats': known}, 400)
+            return
+
+        stamp = catalog_stamp()
+        if self.reject_if_client_stale(stamp):
+            return
+        catalog = load_catalog()
+        canonical = resolve_brand(catalog, brand)
+
+        if canonical not in [b.get('canonical') for b in catalog['brands']]:
+            catalog['brands'].append({'canonical': canonical, 'aliases': []})
+
+        old_name = (body.get('old_name') or '').strip()
+        # 改名要先按旧名定位那条 part：只按新名查会找不到旧的、于是新建一条，
+        # 旧名那条原地残留 —— 品牌总览凭空多一行，正是这个端点要避免的事。
+        probe = old_name or name
+        part = next(
+            (p for p in catalog['parts']
+             if p.get('brand') == canonical and norm_key(p.get('name')) == norm_key(probe)),
+            None,
+        )
+        if part is None:
+            part = {'cat': cat, 'brand': canonical, 'name': name, 'aliases': []}
+            catalog['parts'].append(part)
+
+        keep = [old_name] + [(a or '').strip() for a in (body.get('aliases') or [])]
+        for extra in keep:
+            if extra and norm_key(extra) != norm_key(name) and extra not in part['aliases']:
+                part['aliases'].append(extra)
+        part['name'] = name
+        part['cat'] = cat
+
+        try:
+            save_catalog(catalog, stamp)
+        except WriteConflict:
+            self.handle_write_conflict()
+            return
+        self.send_json({'ok': True, 'part': part})
 
     def handle_delete_record(self, idx):
         # 一份基准贯穿校验与写盘，理由同 handle_add_record：删除只认下标，
