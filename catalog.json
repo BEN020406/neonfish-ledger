@@ -34,6 +34,844 @@
       "name": "待确认"
     }
   ],
-  "brands": [],
-  "parts": []
+  "brands": [
+    {
+      "canonical": "微星",
+      "aliases": []
+    },
+    {
+      "canonical": "华硕",
+      "aliases": []
+    },
+    {
+      "canonical": "技嘉",
+      "aliases": []
+    },
+    {
+      "canonical": "铭瑄",
+      "aliases": []
+    },
+    {
+      "canonical": "AMD",
+      "aliases": []
+    },
+    {
+      "canonical": "七彩虹",
+      "aliases": []
+    },
+    {
+      "canonical": "凯侠",
+      "aliases": []
+    },
+    {
+      "canonical": "INTER",
+      "aliases": []
+    },
+    {
+      "canonical": "宏碁",
+      "aliases": []
+    },
+    {
+      "canonical": "OLOY",
+      "aliases": []
+    },
+    {
+      "canonical": "光威",
+      "aliases": []
+    },
+    {
+      "canonical": "玖合",
+      "aliases": []
+    },
+    {
+      "canonical": "芝奇",
+      "aliases": []
+    },
+    {
+      "canonical": "金士顿",
+      "aliases": []
+    },
+    {
+      "canonical": "金百达",
+      "aliases": []
+    },
+    {
+      "canonical": "阿斯加特",
+      "aliases": []
+    },
+    {
+      "canonical": "",
+      "aliases": []
+    },
+    {
+      "canonical": "佰维",
+      "aliases": []
+    },
+    {
+      "canonical": "影驰",
+      "aliases": []
+    },
+    {
+      "canonical": "海盗船",
+      "aliases": []
+    },
+    {
+      "canonical": "精粤",
+      "aliases": []
+    },
+    {
+      "canonical": "英特尔",
+      "aliases": []
+    },
+    {
+      "canonical": "英睿达",
+      "aliases": []
+    },
+    {
+      "canonical": "西数",
+      "aliases": []
+    }
+  ],
+  "parts": [
+    {
+      "cat": "unknown",
+      "brand": "",
+      "name": "CPU针接触不良返场维修一次",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "AMD",
+      "name": "2700X",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "AMD",
+      "name": "3700x",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "AMD",
+      "name": "5600x",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "AMD",
+      "name": "7500F",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "AMD",
+      "name": "9700X",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "INTER",
+      "name": "12100f",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "INTER",
+      "name": "12400f",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "INTER",
+      "name": "14600kf",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "INTER",
+      "name": "8600k",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "OLOY",
+      "name": "海力士 Adie 16G*2",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "OLOY",
+      "name": "镁光 Edie 16G*2",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "七彩虹",
+      "name": "B550m-t",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "七彩虹",
+      "name": "B660 战斧",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "七彩虹",
+      "name": "BATTLE-AX B760M-G WIFI",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "七彩虹",
+      "name": "H610m",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "七彩虹",
+      "name": "Rtx5070 战斧",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "佰维",
+      "name": "海力士 Mdie 24G*2",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "光威",
+      "name": "海力士 Mdie 24G*2",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "光威",
+      "name": "长鑫 Adie 16G*2",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "凯侠",
+      "name": "rc20 1t",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "凯侠",
+      "name": "sd10 1t",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "凯侠",
+      "name": "sd10 2t",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "凯侠",
+      "name": "se10 2t",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "凯侠",
+      "name": "vd10 2t",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "华硕",
+      "name": "AS806 512g",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "华硕",
+      "name": "B450猛禽",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "华硕",
+      "name": "B650m tuf",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "华硕",
+      "name": "B650m-k",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "华硕",
+      "name": "B650m-r",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "华硕",
+      "name": "B760m 天选ddr4 widi",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "华硕",
+      "name": "B760m-k",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "华硕",
+      "name": "B850 tuf",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "华硕",
+      "name": "B850m TUF white wifi7",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "华硕",
+      "name": "H610m-A",
+      "aliases": [
+        "H610m-a"
+      ]
+    },
+    {
+      "cat": "unknown",
+      "brand": "华硕",
+      "name": "H610m-k",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "华硕",
+      "name": "PRIME B650M-K主板",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "华硕",
+      "name": "PRIME B760M-P D4 R2.0",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "华硕",
+      "name": "X470prime a",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "宏碁",
+      "name": "gm7 1t",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "宏碁",
+      "name": "gm7000 1t",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "宏碁",
+      "name": "海力士 Adie 16G*2",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "影驰",
+      "name": "长鑫 8G",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "360水冷",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "610h 12400f 板u套装",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "A620m-e",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B450m迫击炮",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B650 gaming wifi",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B650carbonwifi",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B650m-b",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B650m-b(7500F)",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B650m-e",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B650mgaming plus wifi",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B650mgaming wifi",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B650m迫击炮",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B650m迫击炮wifi",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B650战斧导弹",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B660M-B",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B660M-G",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B660m爆破弹",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B660m迫击炮",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B760M-A II DDR4",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B760gaming plus DDR4",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B760gaming plus(14600KF)",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B760m-a II DDR4 wifi",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B760m-e",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B760m爆破弹(14600KF)",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B760迫击炮",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B850M EDGE TI MAX",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B850gaming plus",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B850迫击炮wifi",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B850迫击炮wifi(工包)",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "B860gaming plus",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "H610m-E",
+      "aliases": [
+        "H610m-e"
+      ]
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "H610m-E(12400)",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "H610m-G",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "H610m-s",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "H610m爆破弹",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "H610m爆破弹(12100F)",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "PRO B650M-B 主板",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "PRO H610M-E DDR4主板",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "Rtx5070 魔龙",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "X870e CARBON wifi",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "X99 carbon",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "Z790 edge wifi(14700KF)",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "Z790 gaming plus",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "Z790 pro p wifi DDR4",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "b650m gamingplus Wi-Fi主板 时好时",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "b650m-b 爆破弹 带挡板",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "b850mpower",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "h610 坏板",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "liquid R360",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "mag b650m mortar 针脚坏",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "微星",
+      "name": "pro h610m-s wifi ddr4拆机换下来的时",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "技嘉",
+      "name": "B450大雕",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "技嘉",
+      "name": "B650m ds2",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "技嘉",
+      "name": "B650m gaming ac",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "技嘉",
+      "name": "B650m-k",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "技嘉",
+      "name": "B650电竞雕",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "技嘉",
+      "name": "B850冰雕",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "技嘉",
+      "name": "X670小雕（9600X）",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "海盗船",
+      "name": "三星 8G",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "玖合",
+      "name": "海力士 Adie16G*2",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "玖合",
+      "name": "海力士CJR16G*2",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "精粤",
+      "name": "b760M 主板 安装cpu的时候掉下去了针脚砸坏了",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "芝奇",
+      "name": "海力士 Adie 16G*2",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "芝奇",
+      "name": "海力士CJR8G*2",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "英特尔",
+      "name": "I512490F盒装搭配微星PRO H610M",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "英睿达",
+      "name": "镁光8G*2",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "西数",
+      "name": "sn5000 2t",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "金士顿",
+      "name": "nv2 512g",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "金士顿",
+      "name": "海力士CJR 8G*2",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "金百达",
+      "name": "海力士 Mdie 24G*2",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "金百达",
+      "name": "海力士CJR8G*2",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "铭瑄",
+      "name": "B650挑战者",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "铭瑄",
+      "name": "B760M 终结者D4",
+      "aliases": [
+        "B760m 终结者 D4"
+      ]
+    },
+    {
+      "cat": "unknown",
+      "brand": "铭瑄",
+      "name": "B760M-D4终结者主板",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "铭瑄",
+      "name": "B760m 终结者D4 wifi",
+      "aliases": [
+        "B760m终结者D4 wifi"
+      ]
+    },
+    {
+      "cat": "unknown",
+      "brand": "铭瑄",
+      "name": "B760挑战者",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "铭瑄",
+      "name": "B760挑战者wifi(12600KF)",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "阿斯加特",
+      "name": "海力士 Adie 16G*2",
+      "aliases": []
+    },
+    {
+      "cat": "unknown",
+      "brand": "阿斯加特",
+      "name": "长鑫 8G*2",
+      "aliases": []
+    }
+  ]
 }

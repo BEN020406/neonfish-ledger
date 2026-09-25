@@ -1174,6 +1174,89 @@ function normPaid(v) {
   return null;
 }
 
+// ─── Parts catalog：规范名归并 ─────────────────
+// 与 app_standalone.py 的 norm_key / resolve_brand / resolve_part 同一条规则：
+// 第一趟精确命中键，第二趟取最长**包含**（不是前缀 —— 账本里真实存在
+// `MSI PRO H610M-E DDR4` 这种前面带厂商词的写法，前缀规则整类漏），
+// 且参与第二趟的键至少 4 字符（`D4`、`E` 这类碎片会把不相干型号截走）。
+// 两边共用 tests/fixtures/resolve_cases.json 钉行为：pytest 跑 Python 侧，
+// 这份 JS 由浏览器端到端核对真实账本。改规则必须同时改两处。
+let CATALOG = { categories: [], brands: [], parts: [] };
+// 两张索引，一一对上 Python 侧那两个函数：
+//   BRAND_INDEX  normKey(任意写法，含别名) -> 规范品牌
+//   PART_INDEX   normKey(品牌) + ' ' + normKey(型号键) -> part
+// normKey 把空白全删了，空格不可能出现在任一半里，所以它是安全的分隔符。
+const BRAND_INDEX = new Map();
+const PART_INDEX = new Map();
+
+function normKey(text) {
+  return String(text || '').toUpperCase().replace(/（/g, '(').replace(/）/g, ')').replace(/\s+/g, '');
+}
+
+function partKey(brand, key) {
+  return normKey(brand) + ' ' + normKey(key);
+}
+
+function putFirst(map, key, value) {
+  // Python 侧是「按库里的顺序扫到第一个就返回」，这里同样先到先得：
+  // 后写的条目不许把前面的规范名顶掉，否则两边会给出不一样的答案。
+  if (!map.has(key)) map.set(key, value);
+}
+
+function buildCatalogIndex(catalog) {
+  BRAND_INDEX.clear();
+  PART_INDEX.clear();
+  for (const brand of catalog.brands || []) {
+    for (const key of [brand.canonical, ...(brand.aliases || [])]) {
+      putFirst(BRAND_INDEX, normKey(key), brand.canonical);
+    }
+  }
+  for (const part of catalog.parts || []) {
+    for (const key of [part.name, ...(part.aliases || [])]) {
+      putFirst(PART_INDEX, partKey(part.brand, key), part);
+    }
+  }
+}
+
+function resolveBrand(brand) {
+  // 别名也必须认：'凯侠' 是 '铠侠' 的别名时要能折回规范名，
+  // 库里没有就原样返回，绝不猜（Python 的 resolve_brand 同样不猜）。
+  const needle = normKey(brand);
+  if (!needle) return String(brand || '').trim();
+  const hit = BRAND_INDEX.get(needle);
+  return hit === undefined ? String(brand || '').trim() : hit;
+}
+
+function resolvePart(brand, model) {
+  const canonical = resolveBrand(brand);
+  const needle = normKey(model);
+  if (!needle) return null;
+  const exact = PART_INDEX.get(partKey(canonical, needle));
+  if (exact) return exact;
+  // 第二趟：键是原值子串的都进候选，取最长的那个，带尾注的原值才能并回规范名。
+  // part.brand 与 canonical 仍按原字符串比（Python 侧也是 !=），
+  // 播种保证同一品牌的 part 用的就是 brands[].canonical 那份写法。
+  const candidates = [];
+  const prefix = normKey(canonical) + ' ';
+  for (const [key, part] of PART_INDEX) {
+    if (part.brand !== canonical || !key.startsWith(prefix)) continue;
+    const k = key.slice(prefix.length);
+    if (k.length >= 4 && needle.includes(k)) candidates.push([k.length, part]);
+  }
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => b[0] - a[0]);
+  return candidates[0][1];
+}
+
+// 一次性拉知识库；失败就让 BRAND_INDEX / PART_INDEX 空着，
+// 规范名全部退回原值，统计照旧能看，记账绝不被它阻塞。
+async function loadCatalog() {
+  const res = await fetch('/api/catalog');
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  CATALOG = await res.json();
+  buildCatalogIndex(CATALOG);
+}
+
 function parseItems(raw) {
   raw.forEach((r, i) => { r._oi = i; });
   return raw.filter(r => {
@@ -1190,6 +1273,9 @@ function parseItems(raw) {
     order_paid: normPaid(r.order_paid),
     brand: (r.brand || '').trim(),
     model: (r.model || '').trim(),
+    // 归并用的规范名：命不中就退回原值，绝不为空白名单丢记录
+    canonicalBrand: resolveBrand(r.brand) || (r.brand || '').trim(),
+    canonicalModel: (resolvePart(r.brand, r.model) || {}).name || (r.model || '').trim(),
     cost: safeFloat(r.cost),
     sell: safeFloat(r.sell),
     sn: r.sn || '',
@@ -1387,14 +1473,15 @@ function updateStats() {
 function buildBrands() {
   const map = {};
   items.forEach(i => {
-    if (!map[i.brand]) map[i.brand] = { brand: i.brand, count: 0, cost: 0, sell: 0, models: {} };
-    map[i.brand].count++;
-    map[i.brand].cost += i.cost;
-    map[i.brand].sell += i.sell;
-    if (!map[i.brand].models[i.model]) map[i.brand].models[i.model] = { model: i.model, count:0, cost:0, sell:0 };
-    map[i.brand].models[i.model].count++;
-    map[i.brand].models[i.model].cost += i.cost;
-    map[i.brand].models[i.model].sell += i.sell;
+    if (!map[i.canonicalBrand]) map[i.canonicalBrand] = { brand: i.canonicalBrand, count: 0, cost: 0, sell: 0, models: {} };
+    map[i.canonicalBrand].count++;
+    map[i.canonicalBrand].cost += i.cost;
+    map[i.canonicalBrand].sell += i.sell;
+    if (!map[i.canonicalBrand].models[i.canonicalModel]) map[i.canonicalBrand].models[i.canonicalModel] = { model: i.canonicalModel, count: 0, cost: 0, sell: 0 };
+    const detail = map[i.canonicalBrand].models[i.canonicalModel];
+    detail.count++;
+    detail.cost += i.cost;
+    detail.sell += i.sell;
   });
   return Object.values(map).map(b => ({
     ...b, profit: b.sell - b.cost,
@@ -1435,6 +1522,10 @@ function togglePending() {
 }
 
 // ─── BRAND ICONS ──────────────────────────
+// 键一律小写：brandIcon 查的是 brand.toLowerCase()（'AMD'/'INTER' 就是这么命中的）。
+// 后 16 条是播种进来的品牌，厂商色还没有可靠依据，先一律中性底 + 各自首字，
+// 颜色等人工确认后替换（别把这些 hex 当成品牌色抄到别处）。
+// ch 必须整表唯一：SVG 的渐变 id 是 `bg-${ch}`，撞字会让两个品牌共用一份渐变。
 const BRAND_STYLES = {
   '微星': { bg: '#c8a000', fg: '#000000', ring: '#ffd740', ch: '微' },
   '华硕': { bg: '#00539b', fg: '#ffffff', ring: '#0088ff', ch: '硕' },
@@ -1443,6 +1534,23 @@ const BRAND_STYLES = {
   '铭瑄': { bg: '#00c853', fg: '#ffffff', ring: '#69f0ae', ch: '铭' },
   'amd': { bg: '#ff6d00', fg: '#ffffff', ring: '#ff9100', ch: 'A' },
   'inter': { bg: '#0071c5', fg: '#ffffff', ring: '#00a0ff', ch: 'I' },
+  // '英特尔' 与 'inter' 是同一家，照抄本文件里已有的那条 Intel 蓝，不另编色号
+  '英特尔': { bg: '#0071c5', fg: '#ffffff', ring: '#00a0ff', ch: '英' },
+  '凯侠': { bg: '#444', fg: '#fff', ring: '#666', ch: '凯' },
+  '宏碁': { bg: '#444', fg: '#fff', ring: '#666', ch: '宏' },
+  'oloy': { bg: '#444', fg: '#fff', ring: '#666', ch: 'O' },
+  '光威': { bg: '#444', fg: '#fff', ring: '#666', ch: '光' },
+  '玖合': { bg: '#444', fg: '#fff', ring: '#666', ch: '玖' },
+  '芝奇': { bg: '#444', fg: '#fff', ring: '#666', ch: '芝' },
+  '金士顿': { bg: '#444', fg: '#fff', ring: '#666', ch: '金' },
+  '金百达': { bg: '#444', fg: '#fff', ring: '#666', ch: '百' },
+  '阿斯加特': { bg: '#444', fg: '#fff', ring: '#666', ch: '阿' },
+  '佰维': { bg: '#444', fg: '#fff', ring: '#666', ch: '佰' },
+  '影驰': { bg: '#444', fg: '#fff', ring: '#666', ch: '影' },
+  '海盗船': { bg: '#444', fg: '#fff', ring: '#666', ch: '海' },
+  '精粤': { bg: '#444', fg: '#fff', ring: '#666', ch: '精' },
+  '英睿达': { bg: '#444', fg: '#fff', ring: '#666', ch: '睿' },
+  '西数': { bg: '#444', fg: '#fff', ring: '#666', ch: '西' },
 };
 function brandIcon(brand) {
   const s = BRAND_STYLES[brand.toLowerCase()] || BRAND_STYLES[brand] || { bg: '#444', fg: '#fff', ring: '#666', ch: brand[0] || '?' };
@@ -1608,8 +1716,8 @@ function renderRanking() {
         <tbody>${(() => {
           const m = {};
           filtered.forEach(i => {
-            const k = i.brand + '|||' + i.model;
-            if (!m[k]) m[k] = { brand: i.brand, model: i.model, count: 0, profit: 0, sellTotal: 0 };
+            const k = i.canonicalBrand + '|||' + i.canonicalModel;
+            if (!m[k]) m[k] = { brand: i.canonicalBrand, model: i.canonicalModel, count: 0, profit: 0, sellTotal: 0 };
             m[k].count++;
             m[k].profit += i.profit;
             m[k].sellTotal += i.sell;
@@ -2190,7 +2298,13 @@ function handleLogoUpload(e) {
 })();
 
 render();
-fetchItems();
+// 知识库必须先就位：parseItems 是在这里第一次真正跑起来的地方，
+// 索引空着的话规范名会全部退化成原值（统计照旧被大小写拆开）。
+// 拉不到只降级不阻塞——记账比归并优先。
+(async function boot() {
+  try { await loadCatalog(); } catch (e) { console.warn('知识库没加载上，先按原值统计', e); }
+  await fetchItems();
+})();
 
 // ─── CSV IMPORT ──────────────────────────
 function importCSV() {

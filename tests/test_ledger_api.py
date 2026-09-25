@@ -1412,3 +1412,55 @@ def test_split_paid_delta_stays_hidden_without_order_paid():
         "隐藏判断排到了拼装之后，等于先算一遍 NaN 再藏起来"
     assert "¥${fmt(_splitPaid)}" in summary or "fmt(_splitPaid)" in summary, \
         "差额段干脆不显示实付/差额了"
+
+
+# ─── Task 6：前端按知识库规范名归并（同一文件的静态契约段）───
+
+def test_frontend_ships_a_catalog_resolver():
+    """JS 侧必须有与 Python 同一个两趟规则，否则统计还是按脏值算。
+
+    读取器复用本文件既有的 _index_js()（:1174），不再加第二份 index.html 读取实现。
+    """
+    src = _index_js()
+    assert "function normKey(" in src
+    assert "function resolvePart(" in src
+    assert "needle.includes(k)" in src         # 第二趟：最长包含（执行期修订 1）
+    assert "candidates" in src
+
+
+def test_frontend_aggregates_statistics_by_canonical_names():
+    src = _index_js()
+    assert "map[i.canonicalBrand]" in src            # buildBrands 用规范品牌当键
+    assert "i.canonicalModel" in src                 # 型号明细/型号总览用规范型号
+    assert "i.brand + '|||' + i.model" not in src    # 老的脏键必须消失
+
+
+def test_resolve_cases_fixture_matches_js_contract_shape():
+    """用例表是前后端唯一的契约，字段名一改两边都会瞎。"""
+    cases = _read_resolve_cases()["cases"]
+    assert cases, "用例表不能为空"
+    for case in cases:
+        assert set(case) == {"brand", "model", "name", "cat"}
+
+
+def test_brand_styles_cover_every_seeded_canonical_brand():
+    """品牌归一到中文后，BRAND_STYLES 缺键会让图标掉成灰色兜底。"""
+    src = _index_js()
+    catalog = _read_catalog_json()
+    block = src.split("const BRAND_STYLES", 1)[1].split("};", 1)[0]
+    missing = [b["canonical"] for b in catalog["brands"]
+               if b["canonical"].lower() not in block.lower()]
+    assert missing == []
+
+
+def _read_resolve_cases():
+    import json
+    path = Path(__file__).resolve().parent / "fixtures" / "resolve_cases.json"
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _read_catalog_json():
+    import json
+    with open(Path(__file__).resolve().parent.parent / "catalog.json", encoding="utf-8") as f:
+        return json.load(f)
