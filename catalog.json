@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "key": "board",
+      "name": "主板"
+    },
+    {
+      "key": "cpu",
+      "name": "CPU"
+    },
+    {
+      "key": "ram",
+      "name": "内存"
+    },
+    {
+      "key": "ssd",
+      "name": "固态硬盘"
+    },
+    {
+      "key": "cooler",
+      "name": "散热"
+    },
+    {
+      "key": "gpu",
+      "name": "显卡"
+    },
+    {
+      "key": "bundle",
+      "name": "板U套装"
+    },
+    {
+      "key": "unknown",
+      "name": "待确认"
+    }
+  ],
+  "brands": [],
+  "parts": []
+}

@@ -88,6 +88,65 @@ def save_data(data, stamp=None):
     os.replace(tmp, DATA_FILE)
 
 
+# ─── Parts catalog（品类/品牌/型号知识库）───
+# 与 data.json 完全平行的一份文件：账本只存文本，规范名和别名都放这里，
+# 所以同一块板子的 5 种写法不需要改写历史数据也能并成一条统计。
+
+CATALOG_CATEGORIES = [
+    {'key': 'board', 'name': '主板'},
+    {'key': 'cpu', 'name': 'CPU'},
+    {'key': 'ram', 'name': '内存'},
+    {'key': 'ssd', 'name': '固态硬盘'},
+    {'key': 'cooler', 'name': '散热'},
+    {'key': 'gpu', 'name': '显卡'},
+    {'key': 'bundle', 'name': '板U套装'},
+    {'key': 'unknown', 'name': '待确认'},
+]
+
+CATALOG_FILE = os.path.join(APP_DIR, 'catalog.json')
+
+
+def _empty_catalog():
+    """每次新建，不给调用方共享可变的默认值。"""
+    return {
+        'version': 1,
+        'categories': [dict(c) for c in CATALOG_CATEGORIES],
+        'brands': [],
+        'parts': [],
+    }
+
+
+def catalog_stamp():
+    """catalog.json 的版本 token，算法与 file_stamp 同源但对象不同一份文件。"""
+    if not os.path.exists(CATALOG_FILE):
+        return ''
+    with open(CATALOG_FILE, 'rb') as f:
+        blob = f.read()
+    return '%d-%s' % (len(blob), hashlib.sha256(blob).hexdigest()[:16])
+
+
+def load_catalog():
+    """读知识库；文件还没建时返回空骨架，让首次启动不至于 500。"""
+    if not os.path.exists(CATALOG_FILE):
+        return _empty_catalog()
+    with open(CATALOG_FILE, 'r', encoding='utf-8') as f:
+        catalog = json.load(f)
+    if not isinstance(catalog, dict) or not isinstance(catalog.get('parts'), list):
+        raise ValueError('catalog.json must be an object with a parts list')
+    return catalog
+
+
+def save_catalog(catalog, stamp=None):
+    """整份写知识库。不轮转任何 .bak：知识库的误改从 git 回滚，账本的 .bak 只有一份、别乱占。"""
+    payload = json.dumps(catalog, ensure_ascii=False, indent=2)
+    if stamp is not None and catalog_stamp() != stamp:
+        raise WriteConflict('catalog.json changed since it was read')
+    tmp = CATALOG_FILE + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        f.write(payload)
+    os.replace(tmp, CATALOG_FILE)
+
+
 def _money(value):
     """严格解析金额：空/None -> 0.0，数字 -> float，其他一律 None（调用方必须拒绝，别当成 0）。"""
     if value in (None, ""):
