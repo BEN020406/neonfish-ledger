@@ -4,6 +4,7 @@ import os
 
 import conftest  # 复用 ROOT / read_json
 import pytest
+import seed_catalog
 
 app_standalone = pytest.importorskip("app_standalone")
 
@@ -188,3 +189,49 @@ def test_upsert_accepts_bad_json_as_400(api_catalog):
     call, _ = api_catalog
     status, _, _ = call("POST", "/api/catalog/upsert", raw_body=b"{not json", with_headers=True)
     assert status == 400
+
+
+def test_seed_groups_variant_writings_under_their_own_norm_key(tmp_path):
+    """同一种写法归一后只剩一个 part，且组内最高频的原写法当 name。"""
+    seed = tmp_path / "data.json"
+    seed.write_text(json.dumps([
+        {"brand": "微星", "model": "H610m-E", "cost": 1},
+        {"brand": "微星", "model": "H610m-e", "cost": 1},
+        {"brand": "微星", "model": "H610m-e", "cost": 1},
+    ], ensure_ascii=False), encoding="utf-8")
+    catalog = seed_catalog.build_catalog(seed_catalog.load_pairs(str(seed)))
+    parts = [p for p in catalog["parts"] if p["brand"] == "微星"]
+    assert len(parts) == 1
+    assert parts[0]["name"] == "H610m-e"        # 出现 2 次的那写法胜出
+    assert parts[0]["aliases"] == ["H610m-E"]
+
+
+def test_seed_marks_unknown_cat_instead_of_guessing(tmp_path):
+    """播种阶段不许判品类：判类是 P3 迁移的活，那里要他复核 dry-run。"""
+    seed = tmp_path / "data.json"
+    seed.write_text(json.dumps([{"brand": "微星", "model": "X99 carbon", "cost": 1}]), encoding="utf-8")
+    catalog = seed_catalog.build_catalog(seed_catalog.load_pairs(str(seed)))
+    assert catalog["parts"][0]["cat"] == "unknown"
+
+
+def test_seed_is_deterministic(tmp_path):
+    seed = tmp_path / "data.json"
+    seed.write_text(json.dumps([
+        {"brand": "微星", "model": "B650m-b", "cost": 1},
+        {"brand": "铭瑄", "model": "B760挑战者", "cost": 1},
+    ], ensure_ascii=False), encoding="utf-8")
+    pairs = seed_catalog.load_pairs(str(seed))
+    a = json.dumps(seed_catalog.build_catalog(pairs), ensure_ascii=False, sort_keys=True)
+    b = json.dumps(seed_catalog.build_catalog(list(reversed(pairs))), ensure_ascii=False, sort_keys=True)
+    assert a == b                                # 顺序不影响输出，便于 git diff 复核
+
+
+def test_seed_produces_no_duplicate_canonical_keys(tmp_path):
+    """播种的产物若还有两 part 在归一后同键，说明有一组写法漏并了 —— 这才是会出事的地方。
+    （反过来，"用同一份 data.json 播的库当然命中自己每条 model" 是套套逻辑，不测。）"""
+    pairs = seed_catalog.load_pairs(conftest.REAL_DATA_FILE)
+    catalog = seed_catalog.build_catalog(pairs)
+    keys = [(p["brand"], app_standalone.norm_key(p["name"])) for p in catalog["parts"]]
+    dupes = {k for k in keys if keys.count(k) > 1}
+    assert dupes == set()
+    assert len(catalog["parts"]) == 122        # 规格 §4 实测值，漂了要停下来查
