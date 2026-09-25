@@ -81,7 +81,7 @@
       "cat": "board",
       "brand": "微星",
       "name": "B650M-B",
-      "aliases": ["B650m-b", "b650m-b", "PRO B650M-B 主板", "B650m-b(7500F)"]
+      "aliases": ["B650m-b", "b650m-b", "PRO B650M-B 主板"]
     }
   ]
 }
@@ -90,6 +90,8 @@
 规则：
 
 - **唯一键 = `(brand, name)`**，不设 id。改名时旧 `name` 自动进 `aliases`，所以历史记录仍然能归并过来。
+- **带 `(CPU型号)` 的套装行永远不当别人的 `aliases`**。`B650m-b(7500F)` 不是 `B650M-B` 的另一种写法，
+  它多一颗 CPU；并进主板会把 `bundle` 的成本算进 `board`，两类利润同时错（§3 单列 `bundle` 的原因）。
 - `cat` 挂在 part 上，不在运行时推断。
 - `parts[].brand` 必须是某个 `brands[].canonical`，加载时校验，不满足的 part 在启动日志里报出来（不静默丢弃）。
 - 播种分两遍：

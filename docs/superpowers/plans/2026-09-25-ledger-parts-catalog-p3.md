@@ -1506,4 +1506,39 @@ Expected: `brands=22`、品牌别名数 > 0、`records=255`、`cat` 分布等于
 
 ### 3. 提交链
 
-`aea55c6`（P3 计划）→ `85cf0af`（Task 1：播种排除空品牌/空型号）。
+`aea55c6`（P3 计划）→ `85cf0af`（Task 1：播种排除空品牌/空型号）→ `3984d44`（本节的 1/2 条）→ `4e62806`（Task 2：cat_rules）→ `6d0370e`（用例改名）→ `dda5189`（Task 3：品牌层 + 校验认得改名新建的规范名）→ `506aad7`（Task 4：型号层合并 + medium 闸门）→ Task 5（品类实体化 + 两个校验洞，见下）。
+
+### 4. Task 5 正文的 `part_cats` 保持 [] 是错的，已改成实体化
+
+正文 Task 5 Step 3 写「`part_cats` 先留空，等第二遍判完再填」。执行时确认这条路走不通：
+规则只算出内存里的判定，**不写回 `catalog.json` 就没人能拿到品类**（前端只读库、不读规则）。
+所以 `part_cats` 就是品类落库的唯一载体，必须实体化。新增脚本 `gen_part_cats.py` 生成它：
+默认 dry-run 打印计数与分布，`--write` 才改补丁，`--allow-medium` 要和将来 apply 时用的一致
+（排除的是「这次真会执行的合并」，否则会给即将消失的 part 定品类）。
+
+当前实数：`part_cats = 113`（121 条 part 减 7 条 high 合并吃掉的 8 个 fold），规则未判定 0 条，
+part 层分布 `{board:62, ram:18, ssd:10, bundle:10, cpu:9, cooler:2, gpu:2}`。
+
+### 5. 执行 Task 5 时抓到两个洞（都已 TDD 修掉）
+
+1. **校验按合并前的库判 part_cats**。`apply_patch` 的顺序是改名→别名→合并→写品类，
+   而 `validate()` 第 4 条用改名/合并**之前**的 part 集合放行，于是一条「给马上要被合并掉的
+   part 定品类」的补丁校验全绿、到写盘才 `TypeError`。修法：`_part_resolver()` 先算出落盘时
+   的真身集合（含品牌改名的两种写法），`validate()` 与 `apply_patch()` 共用它；被合并掉的
+   名字直接报错并提示写给 keep。**这个开关必须与执行一致**：medium 未放行时它的 fold 还活着，
+   判成「会被合并掉」是假红（`_part_resolver(..., allow_medium)`）。
+2. **`apply_patch(catalog_file=X)` 读 X、写的却是 `app_standalone.CATALOG_FILE`**。
+   `catalog_file` 只管读，落盘走 `save_catalog()` 里的模块常量。我用一份临时副本跑模拟时，
+   它把补丁真写进了线上 `catalog.json`（已 `git checkout` 回退，`catalog.json` 与 HEAD 一致、
+   brands=23/parts=121；`data.json` 全程未动，sha 仍 `fd50d857…`）。
+   修法：`catalog_stamp(path=None)` / `save_catalog(..., path=None)`，`apply_patch` 显式传自己
+   读的那个路径；配一条两个路径故意不同的用例（`test_apply_patch_never_writes_outside_the_path_it_was_given`）
+   钉住「读哪份写哪份」。旧的 `sandbox`/`real_brand_sandbox` fixture 同时 patch 两个模块，
+   所以从来发现不了这个洞 —— 校验器不能只测它自己顺手的那条路。
+
+附带：§3 的记录级分布钉成 `test_every_record_classifies_to_expected_distribution`
+（打在真 catalog 副本 + 真补丁上，`board=166 / cooler=25 / ram=25 / ssd=13 / cpu=12 /
+bundle=10 / gpu=2 / unknown=2` 全中），另加一条永不烂的不变量
+`test_every_record_gets_a_legal_cat`：cat 必须落在 8 个键内，unknown 只允许
+`""` 和 `CPU针接触不良返场维修一次` 那两条。前者是一次性闸门，账本新增记录后要重新核对再改数字。
+全量测试：**239 passed**（Task 4 后 231 → 新增 8 条）。
