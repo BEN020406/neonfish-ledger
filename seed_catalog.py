@@ -15,7 +15,7 @@ import app_standalone as m
 def load_pairs(data_file):
     with open(data_file, 'r', encoding='utf-8') as f:
         records = json.load(f)
-    return [((r.get('brand') or '').strip(), (r.get('model') or '').strip()) for r in records]
+    return [(r.get('brand'), r.get('model')) for r in records]
 
 
 def build_catalog(pairs):
@@ -25,8 +25,7 @@ def build_catalog(pairs):
     for (brand, model), hits in counter.items():
         brand = (brand or '').strip()
         model = (model or '').strip()
-        # 规格 §4：空 brand 或空 model 的组合不入库。维修、空行这类记录
-        # 没有"型号"可言，硬塞进库会变成一行看不见也选不中的脏键。
+        # 过滤必须排在分组累加之前：空值一旦进了组，"取组内最高频写法"就会选出空名。
         if not brand or not model:
             continue
         groups[(m.norm_key(brand), m.norm_key(model))].append((brand, model, hits))

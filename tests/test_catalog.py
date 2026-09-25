@@ -238,18 +238,14 @@ def test_seed_produces_no_duplicate_canonical_keys(tmp_path):
 
 
 def test_seed_skips_pairs_with_empty_brand_or_model():
-    """规格 §4：空 model 的记录不生成 part，空 brand 不生成品牌条目。
-
-    P1 的播种违反了这条，库里留下 canonical="" 的品牌和一条空名 part，
-    它在统计里是一行看不见的脏数据。
-    """
-    pairs = [("微星", "B650M-B"), ("", "某条维修"), ("光威", ""), ("", "")]
+    """空值必须挡在分组累加之前：进了组就会被"取组内最高频写法"选成 part 名。"""
+    pairs = [("微星", "B650M-B"), ("", "某条维修"), ("光威", ""), ("　", " ")]  # 末条是全角空格 + 半角空格
     catalog = seed_catalog.build_catalog(pairs)
     assert [b["canonical"] for b in catalog["brands"]] == ["微星"]
     assert [p["name"] for p in catalog["parts"]] == ["B650M-B"]
 
 
 def test_catalog_has_no_blank_brand_or_name():
-    catalog = json.load(open(os.path.join(conftest.ROOT, "catalog.json"), encoding="utf-8"))
+    catalog = conftest.read_json(os.path.join(conftest.ROOT, "catalog.json"))
     assert all(b["canonical"].strip() for b in catalog["brands"]), "brands 里有空 canonical"
     assert all(p["brand"].strip() and p["name"].strip() for p in catalog["parts"]), "parts 里有空 brand/name"
