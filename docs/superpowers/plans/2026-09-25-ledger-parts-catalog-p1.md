@@ -996,3 +996,10 @@ cd "G:/claude code" && git add index.html tests/test_ledger_api.py && git commit
    - `api_catalog` fixture 把 `brands` 播种成 `[]`，等于把"凯侠→铠侠"这条被测契约抹掉；改成带上 `resolve_cases.json` 里的同一份 brands。
    - **实现逻辑错（最严重）**：`handle_catalog_upsert` 原本只按**新名**在库里找 part，改名时找不到旧条目 → 新建一条、旧的残留，品牌总览凭空多一行，正是该端点要避免的后果。已改成先用 `old_name`（没给才用 `name`）定位，命中后原地换 `name`、旧名进 `aliases`。
 7. **Task 4 结束的真实计数是 28 passed**（Task 3 后 21 + 7 条 upsert 测试；`_upsert` 是辅助函数不被收集）。上面第 4 条写的 29 是我按"8 条测试"误算，往下的 Task 5、6 预期相应减 1：Task 5 结束 `32`、Task 6 全量 `212`。
+
+**Task 6 实做时发现（同日，覆盖上文 Task 6 正文）**：
+
+8. **3b 那段 JS 归并不了品牌别名，已改成两张索引。** 计划稿把品牌条目和型号条目塞进同一张 `CATALOG_INDEX`，品牌查询写的是 `get(needle + '\0' + needle)` —— 只有"给出的写法恰好等于 canonical"才命中，`凯侠 → 铠侠`、`INTER → 英特尔` 这两类型名别名整类落空（拿 `tests/fixtures/resolve_cases.json` 在 node 里跑 3b 原样，13 条里错 2 条，正是这两条）。落地版改成 `BRAND_INDEX`（normKey(任意写法) → 规范品牌，对齐 `resolve_brand` 的 canonical/alias 都扫）+ `PART_INDEX`（normKey(品牌)+' '+normKey(键) → part），并统一"先到先得"，两边给的答案与 Python 逐字一致（真实 catalog 全量 122 行、0 差异）。
+9. **Step 2 的红是 3 failed + 1 passed，不是 4 failed。** `test_resolve_cases_fixture_matches_js_contract_shape` 只查用例表字段，Task 2 就已经把它钉住了，写出来即绿。
+10. **`_read_index_html()` 不必新加**：本文件 `:1174` 已有 `_index_js()`，再加一个读取器就是第二份实现。新增的只有 `_read_resolve_cases()` / `_read_catalog_json()`。
+11. **三条验收数字实做结果（真实页面 8791，不是推算）**：微星 `H610m-E` **15 笔 ✓ 自动达成**（9+6 并成一行，畅销榜同点 15 件）；铭瑄终结者 **并成 3 行**（`B760m 终结者D4 wifi` 3 + `B760M 终结者D4` 2 + `B760M-D4终结者主板` 1 = 6 笔）—— 词序/连字符不同，机械规则并不了，**要人工把这三串登记成同一 part 的别名**；品牌层 `INTER` 6 行与 `英特尔` 1 行**仍是两行**，因为 `seed_catalog.py` 不产品牌别名（`brands[].aliases` 全空）—— **要人工补 `英特尔.aliases += ['INTER']`**。后两条不算 P1 失败（P1 要的是机制成立 + 能自动并的先并上 + 剩下的可观测），但它们是 P2/P3 人工第一遍的明确待办。
