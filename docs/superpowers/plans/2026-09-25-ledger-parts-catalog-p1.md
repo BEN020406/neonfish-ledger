@@ -784,7 +784,7 @@ def test_frontend_ships_a_catalog_resolver():
     src = _read_index_html()
     assert "function normKey(" in src
     assert "function resolvePart(" in src
-    assert "startsWith(key)" in src          # 最长前缀那一趟
+    assert "needle.includes(k)" in src         # 第二趟：最长包含
     assert "candidates" in src
 
 
@@ -888,7 +888,7 @@ function resolvePart(brand, model) {
   for (const [key, entry] of CATALOG_INDEX) {
     if (entry.kind !== 'part' || entry.part.brand !== canonical || !key.startsWith(prefix)) continue;
     const k = key.slice(prefix.length);
-    if (k && needle.startsWith(k)) candidates.push([k.length, entry.part]);
+    if (k.length >= 4 && needle.includes(k)) candidates.push([k.length, entry.part]);
   }
   if (!candidates.length) return null;
   candidates.sort((a, b) => b[0] - a[0]);
@@ -980,3 +980,13 @@ cd "G:/claude code" && git add index.html tests/test_ledger_api.py && git commit
 - `git status` 里 `data.json` 无改动（P1 完全不碰账本），真实 `data.json` sha 仍为 `fd50d857c17f9f0f…`。
 - 品牌总览三处归并肉眼核对通过（15 / 6 / 7）。
 - `catalog.json` 已提交进 git，品类 8 项、`parts` 全部 `cat: "unknown"`（人工判类是 P3 的活）。
+
+---
+
+## 执行期修订（Task 2 实做时发现，权威覆盖上文）
+
+1. **第二趟匹配：最长前缀 → 最长包含。** 上文 Task 2 Step 4 与 Task 6 3b 写的 `startswith` 已作废，两边都以 `key in needle` / `needle.includes(k)` 为准。理由：账本里真实存在 `MSI PRO H610M-E DDR4` 这种前面带厂商词的写法，前缀规则整类漏；新增 `MSI PRO H610M-E DDR4 (拆机)` 用例把它钉住（commit `849b7f0`）。
+2. **参与第二趟的键至少 4 字符。** 否则 `D4`、`E` 这类碎片会把不相干型号截走。
+3. **「尾注顶掉关键词」不靠算法，靠库里的短别名。** `mag b650m mortar 针脚坏` 里「针脚坏」替换掉了别名中的 `WIFI`，任何字符串包含规则都命中不了 —— 解法是给该 part 补一条短别名 `MAG B650M MORTAR`。这条规则要在 P3/P4 的说明里反复提醒：**别名要包含"能当子串的短形式"**，这是人工第二遍存在的理由，不是算法缺陷。
+4. **用例表 12 → 13 条**（新增上面那条 MSI）。覆盖上文的测试计数预期：Task 2 结束 `19 passed`，Task 3 `21`，Task 4 `29`，Task 5 `33`，Task 6 全量 `213`（176 旧 + 4 静态契约 + 33 catalog）。判断标准不变：**只增不减**。
+5. `tests/fixtures/` 本来就存在（放着 `ledger_empty_orders.json` 等），不需要新建。

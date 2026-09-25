@@ -107,9 +107,13 @@ resolve(brand, model):
   1. B = brand 命中 brands（canonical 或 aliases），取 canonical；未命中原样用
   2. 取该 B 名下所有 part，算 N(name) 与 N(alias)
   3. 精确命中 N(model) → 该 part
-  4. 前缀命中：N(model) 以某个 N(name)/N(alias) 开头 → 取匹配串最长的那个 part
-     （覆盖 `b650m gamingplus Wi-Fi主板 时好时` 这类带尾注的原值）
+  4. 最长包含命中：某个 N(name)/N(alias) 是 N(model) 的子串（键至少 4 个字符，防 `D4` 这类碎片截走）→ 取匹配键最长的那个 part
+     （覆盖 `b650m-b 爆破弹 带挡板`、`MSI PRO H610M-E DDR4` 这类前面或后面多出字来的原值）
   5. 都没命中 → 返回 null，统计时按原值自成一类
+
+边界：`mag b650m mortar 针脚坏` 的「针脚坏」是**顶掉**了别名 `MAG B650M MORTAR WIFI` 里的 `WIFI`，
+任何字符串规则都救不了 —— 只能由库里补一条短别名 `MAG B650M MORTAR` 兜住。
+所以 §4 的人工第二遍要明确一条维护规则：**别名要包含"能当子串的短形式"**。
 ```
 
 第 4 步的"最长匹配优先"是硬要求：库里同时存在 `B650M-B` 与 `B650M-B PRO` 时，`b650m-b pro 带挡板` 必须落到后者。
