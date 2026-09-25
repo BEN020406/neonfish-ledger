@@ -1,0 +1,31 @@
+{
+  "brands": [
+    { "canonical": "微星", "aliases": ["MSI"] },
+    { "canonical": "英特尔", "aliases": ["INTER", "Intel"] },
+    { "canonical": "铠侠", "aliases": ["凯侠"] }
+  ],
+  "parts": [
+    { "cat": "board", "brand": "微星", "name": "B650M-B", "aliases": ["B650m-b", "b650m-b", "PRO B650M-B 主板"] },
+    { "cat": "board", "brand": "微星", "name": "B650M-B PRO", "aliases": [] },
+    { "cat": "board", "brand": "微星", "name": "H610M-E DDR4", "aliases": ["H610m-E", "H610m-e", "PRO H610M-E DDR4主板"] },
+    { "cat": "board", "brand": "微星", "name": "B650M 迫击炮 WIFI", "aliases": ["B650m迫击炮wifi", "MAG B650M MORTAR WIFI", "MAG B650M MORTAR"] },
+    { "cat": "board", "brand": "铭瑄", "name": "B760M 终结者 D4 WIFI", "aliases": ["B760m 终结者D4 wifi", "B760M-D4终结者主板"] },
+    { "cat": "ssd", "brand": "铠侠", "name": "SD10 2TB", "aliases": ["sd10 2t"] },
+    { "cat": "board", "brand": "英特尔", "name": "B660", "aliases": [] }
+  ],
+  "cases": [
+    { "brand": "微星", "model": "B650m-b", "name": "B650M-B", "cat": "board" },
+    { "brand": "微星", "model": "H610m-e", "name": "H610M-E DDR4", "cat": "board" },
+    { "brand": "微星", "model": "H610m-E", "name": "H610M-E DDR4", "cat": "board" },
+    { "brand": "微星", "model": "PRO H610M-E DDR4主板", "name": "H610M-E DDR4", "cat": "board" },
+    { "brand": "微星", "model": "b650m-b 爆破弹 带挡板", "name": "B650M-B", "cat": "board" },
+    { "brand": "微星", "model": "b650m-b pro", "name": "B650M-B PRO", "cat": "board" },
+    { "brand": "微星", "model": "mag b650m mortar 针脚坏", "name": "B650M 迫击炮 WIFI", "cat": "board" },
+    { "brand": "铭瑄", "model": "B760M-D4终结者主板", "name": "B760M 终结者 D4 WIFI", "cat": "board" },
+    { "brand": "凯侠", "model": "sd10 2t", "name": "SD10 2TB", "cat": "ssd" },
+    { "brand": "INTER", "model": "B660", "name": "B660", "cat": "board" },
+    { "brand": "微星", "model": "MSI PRO H610M-E DDR4 (拆机)", "name": "H610M-E DDR4", "cat": "board" },
+    { "brand": "微星", "model": "X870E CARBON WIFI", "name": null, "cat": null },
+    { "brand": "微星", "model": "", "name": null, "cat": null }
+  ]
+}

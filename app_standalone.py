@@ -147,6 +147,68 @@ def save_catalog(catalog, stamp=None):
     os.replace(tmp, CATALOG_FILE)
 
 
+def norm_key(text):
+    """归一化比较键：大写、去所有空白、全角括号转半角。
+    大小写与空格是账本里最主要的重复来源（H610m-E / H610m-e 就是两种写法）。"""
+    s = (text or '').upper()
+    s = s.replace('（', '(').replace('）', ')').replace('　', '')
+    return ''.join(s.split())
+
+
+def resolve_brand(catalog, brand):
+    """把 brand 折成 canonical 写法；库里没有就原样返回，绝不猜。"""
+    needle = norm_key(brand)
+    if not needle:
+        return (brand or '').strip()
+    for entry in catalog.get('brands', []):
+        if norm_key(entry.get('canonical')) == needle:
+            return entry['canonical']
+        for alias in entry.get('aliases', []):
+            if norm_key(alias) == needle:
+                return entry['canonical']
+    return (brand or '').strip()
+
+
+def resolve_part(catalog, brand, model):
+    """model → 库里的 part；命中不了返回 None。
+
+    两趟，且必须在同一趟品牌候选里比：
+    1) 精确：N(model) 等于 N(name) 或某个 N(alias)；
+    2) 最长包含：某个 N(name)/N(alias) 是 N(model) 的子串，取键最长的那个 ——
+       这样 `b650m-b pro` 落到 B650M-B PRO 而不是被 B650M-B 截走，
+       前面带厂商词的 `MSI PRO H610M-E DDR4` 也能命中（用前缀规则会漏）。
+
+    键最短取 4 个字符：`D4`、`E` 这类碎片会把不相干型号截走。
+    边界：账本里 `mag b650m mortar 针脚坏` 的「针脚坏」是**顶掉**了别名里的
+    `WIFI`，任何字符串包含规则都救不了 —— 这种只能由库里存一个更短的别名
+    （`MAG B650M MORTAR`）来解决，正是规格 §4「人工第二遍」存在的理由。
+    """
+    canonical = resolve_brand(catalog, brand)
+    needle = norm_key(model)
+    if not needle:
+        return None
+    candidates = []
+    for part in catalog.get('parts', []):
+        if part.get('brand') != canonical:
+            continue
+        for key, source in _part_keys(part):
+            if key == needle:
+                return part
+            if len(key) >= 4 and key in needle:
+                candidates.append((len(key), part))
+    if candidates:
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        return candidates[0][1]
+    return None
+
+
+def _part_keys(part):
+    """part 自己参与的匹配键：规范名 + 全部别名。"""
+    yield norm_key(part.get('name')), 'name'
+    for alias in part.get('aliases', []):
+        yield norm_key(alias), 'alias'
+
+
 def _money(value):
     """严格解析金额：空/None -> 0.0，数字 -> float，其他一律 None（调用方必须拒绝，别当成 0）。"""
     if value in (None, ""):
