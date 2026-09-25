@@ -116,11 +116,15 @@ def _empty_catalog():
     }
 
 
-def catalog_stamp():
-    """catalog.json 的版本 token，算法与 file_stamp 同源但对象不同一份文件。"""
-    if not os.path.exists(CATALOG_FILE):
+def catalog_stamp(path=None):
+    """catalog.json 的版本 token，算法与 file_stamp 同源但对象不同一份文件。
+
+    path 是给一次性脚本用的：它们要在临时副本上试算，默认值仍是线上那一份。
+    """
+    target = path or CATALOG_FILE
+    if not os.path.exists(target):
         return ''
-    with open(CATALOG_FILE, 'rb') as f:
+    with open(target, 'rb') as f:
         blob = f.read()
     return '%d-%s' % (len(blob), hashlib.sha256(blob).hexdigest()[:16])
 
@@ -136,15 +140,20 @@ def load_catalog():
     return catalog
 
 
-def save_catalog(catalog, stamp=None):
-    """整份写知识库。不轮转任何 .bak：知识库的误改从 git 回滚，账本的 .bak 只有一份、别乱占。"""
+def save_catalog(catalog, stamp=None, path=None):
+    """整份写知识库。不轮转任何 .bak：知识库的误改从 git 回滚，账本的 .bak 只有一份、别乱占。
+
+    path 给一次性脚本用：它读的是临时副本，写也必须落在那份副本上。
+    少了这个参数，读副本、写线上的错配会直接把真库改坏。
+    """
+    target = path or CATALOG_FILE
     payload = json.dumps(catalog, ensure_ascii=False, indent=2)
-    if stamp is not None and catalog_stamp() != stamp:
+    if stamp is not None and catalog_stamp(target) != stamp:
         raise WriteConflict('catalog.json changed since it was read')
-    tmp = CATALOG_FILE + '.tmp'
+    tmp = target + '.tmp'
     with open(tmp, 'w', encoding='utf-8') as f:
         f.write(payload)
-    os.replace(tmp, CATALOG_FILE)
+    os.replace(tmp, target)
 
 
 def norm_key(text):

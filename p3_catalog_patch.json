@@ -140,63 +140,650 @@
     {
       "brand": "微星",
       "keep": "B650m-b",
-      "fold": ["PRO B650M-B 主板", "b650m-b 爆破弹 带挡板"],
+      "fold": [
+        "PRO B650M-B 主板",
+        "b650m-b 爆破弹 带挡板"
+      ],
       "confidence": "high"
     },
     {
       "brand": "微星",
       "keep": "H610m-E",
-      "fold": ["PRO H610M-E DDR4主板"],
+      "fold": [
+        "PRO H610M-E DDR4主板"
+      ],
       "confidence": "high"
     },
     {
       "brand": "微星",
       "keep": "H610m-s",
-      "fold": ["pro h610m-s wifi ddr4拆机换下来的时"],
+      "fold": [
+        "pro h610m-s wifi ddr4拆机换下来的时"
+      ],
       "confidence": "high"
     },
     {
       "brand": "微星",
       "keep": "B650mgaming plus wifi",
-      "fold": ["b650m gamingplus Wi-Fi主板 时好时"],
+      "fold": [
+        "b650m gamingplus Wi-Fi主板 时好时"
+      ],
       "confidence": "high"
     },
     {
       "brand": "微星",
       "keep": "B850迫击炮wifi",
-      "fold": ["B850迫击炮wifi(工包)"],
+      "fold": [
+        "B850迫击炮wifi(工包)"
+      ],
       "confidence": "high"
     },
     {
       "brand": "华硕",
       "keep": "B650m-k",
-      "fold": ["PRIME B650M-K主板"],
+      "fold": [
+        "PRIME B650M-K主板"
+      ],
       "confidence": "high"
     },
     {
       "brand": "铭瑄",
       "keep": "B760M 终结者D4",
-      "fold": ["B760M-D4终结者主板"],
+      "fold": [
+        "B760M-D4终结者主板"
+      ],
       "confidence": "high"
     },
     {
       "brand": "微星",
       "keep": "B650m迫击炮wifi",
-      "fold": ["mag b650m mortar 针脚坏"],
+      "fold": [
+        "mag b650m mortar 针脚坏"
+      ],
       "confidence": "medium"
     },
     {
       "brand": "微星",
       "keep": "B650mgaming wifi",
-      "fold": ["B650 gaming wifi"],
+      "fold": [
+        "B650 gaming wifi"
+      ],
       "confidence": "medium"
     },
     {
       "brand": "微星",
       "keep": "liquid R360",
-      "fold": ["360水冷"],
+      "fold": [
+        "360水冷"
+      ],
       "confidence": "medium"
     }
   ],
-  "part_cats": []
+  "part_cats": [
+    {
+      "brand": "AMD",
+      "name": "2700X",
+      "cat": "cpu"
+    },
+    {
+      "brand": "AMD",
+      "name": "3700x",
+      "cat": "cpu"
+    },
+    {
+      "brand": "AMD",
+      "name": "5600x",
+      "cat": "cpu"
+    },
+    {
+      "brand": "AMD",
+      "name": "7500F",
+      "cat": "cpu"
+    },
+    {
+      "brand": "AMD",
+      "name": "9700X",
+      "cat": "cpu"
+    },
+    {
+      "brand": "OLOY",
+      "name": "海力士 Adie 16G*2",
+      "cat": "ram"
+    },
+    {
+      "brand": "OLOY",
+      "name": "镁光 Edie 16G*2",
+      "cat": "ram"
+    },
+    {
+      "brand": "七彩虹",
+      "name": "B550m-t",
+      "cat": "board"
+    },
+    {
+      "brand": "七彩虹",
+      "name": "B660 战斧",
+      "cat": "board"
+    },
+    {
+      "brand": "七彩虹",
+      "name": "BATTLE-AX B760M-G WIFI",
+      "cat": "board"
+    },
+    {
+      "brand": "七彩虹",
+      "name": "H610m",
+      "cat": "board"
+    },
+    {
+      "brand": "七彩虹",
+      "name": "Rtx5070 战斧",
+      "cat": "gpu"
+    },
+    {
+      "brand": "佰维",
+      "name": "海力士 Mdie 24G*2",
+      "cat": "ram"
+    },
+    {
+      "brand": "光威",
+      "name": "海力士 Mdie 24G*2",
+      "cat": "ram"
+    },
+    {
+      "brand": "光威",
+      "name": "长鑫 Adie 16G*2",
+      "cat": "ram"
+    },
+    {
+      "brand": "华硕",
+      "name": "AS806 512g",
+      "cat": "ssd"
+    },
+    {
+      "brand": "华硕",
+      "name": "B450猛禽",
+      "cat": "board"
+    },
+    {
+      "brand": "华硕",
+      "name": "B650m-k",
+      "cat": "board"
+    },
+    {
+      "brand": "华硕",
+      "name": "B650m-r",
+      "cat": "board"
+    },
+    {
+      "brand": "华硕",
+      "name": "B650m tuf",
+      "cat": "board"
+    },
+    {
+      "brand": "华硕",
+      "name": "B760m-k",
+      "cat": "board"
+    },
+    {
+      "brand": "华硕",
+      "name": "B760m 天选ddr4 widi",
+      "cat": "board"
+    },
+    {
+      "brand": "华硕",
+      "name": "B850m TUF white wifi7",
+      "cat": "board"
+    },
+    {
+      "brand": "华硕",
+      "name": "B850 tuf",
+      "cat": "board"
+    },
+    {
+      "brand": "华硕",
+      "name": "H610m-A",
+      "cat": "board"
+    },
+    {
+      "brand": "华硕",
+      "name": "H610m-k",
+      "cat": "board"
+    },
+    {
+      "brand": "华硕",
+      "name": "PRIME B760M-P D4 R2.0",
+      "cat": "board"
+    },
+    {
+      "brand": "华硕",
+      "name": "X470prime a",
+      "cat": "board"
+    },
+    {
+      "brand": "宏碁",
+      "name": "gm7000 1t",
+      "cat": "ssd"
+    },
+    {
+      "brand": "宏碁",
+      "name": "gm7 1t",
+      "cat": "ssd"
+    },
+    {
+      "brand": "宏碁",
+      "name": "海力士 Adie 16G*2",
+      "cat": "ram"
+    },
+    {
+      "brand": "影驰",
+      "name": "长鑫 8G",
+      "cat": "ram"
+    },
+    {
+      "brand": "微星",
+      "name": "360水冷",
+      "cat": "cooler"
+    },
+    {
+      "brand": "微星",
+      "name": "610h 12400f 板u套装",
+      "cat": "bundle"
+    },
+    {
+      "brand": "微星",
+      "name": "A620m-e",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B450m迫击炮",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B650carbonwifi",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B650 gaming wifi",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B650m-b",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B650m-b(7500F)",
+      "cat": "bundle"
+    },
+    {
+      "brand": "微星",
+      "name": "B650m-e",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B650mgaming plus wifi",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B650mgaming wifi",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B650m迫击炮",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B650m迫击炮wifi",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B650战斧导弹",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B660M-B",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B660M-G",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B660m爆破弹",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B660m迫击炮",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B760gaming plus(14600KF)",
+      "cat": "bundle"
+    },
+    {
+      "brand": "微星",
+      "name": "B760gaming plus DDR4",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B760M-A II DDR4",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B760m-a II DDR4 wifi",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B760m-e",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B760m爆破弹(14600KF)",
+      "cat": "bundle"
+    },
+    {
+      "brand": "微星",
+      "name": "B760迫击炮",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B850gaming plus",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B850M EDGE TI MAX",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "b850mpower",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B850迫击炮wifi",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "B860gaming plus",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "H610m-E",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "H610m-E(12400)",
+      "cat": "bundle"
+    },
+    {
+      "brand": "微星",
+      "name": "H610m-G",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "H610m-s",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "H610m爆破弹",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "H610m爆破弹(12100F)",
+      "cat": "bundle"
+    },
+    {
+      "brand": "微星",
+      "name": "h610 坏板",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "liquid R360",
+      "cat": "cooler"
+    },
+    {
+      "brand": "微星",
+      "name": "mag b650m mortar 针脚坏",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "Rtx5070 魔龙",
+      "cat": "gpu"
+    },
+    {
+      "brand": "微星",
+      "name": "X870e CARBON wifi",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "X99 carbon",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "Z790 edge wifi(14700KF)",
+      "cat": "bundle"
+    },
+    {
+      "brand": "微星",
+      "name": "Z790 gaming plus",
+      "cat": "board"
+    },
+    {
+      "brand": "微星",
+      "name": "Z790 pro p wifi DDR4",
+      "cat": "board"
+    },
+    {
+      "brand": "技嘉",
+      "name": "B450大雕",
+      "cat": "board"
+    },
+    {
+      "brand": "技嘉",
+      "name": "B650m-k",
+      "cat": "board"
+    },
+    {
+      "brand": "技嘉",
+      "name": "B650m ds2",
+      "cat": "board"
+    },
+    {
+      "brand": "技嘉",
+      "name": "B650m gaming ac",
+      "cat": "board"
+    },
+    {
+      "brand": "技嘉",
+      "name": "B650电竞雕",
+      "cat": "board"
+    },
+    {
+      "brand": "技嘉",
+      "name": "B850冰雕",
+      "cat": "board"
+    },
+    {
+      "brand": "技嘉",
+      "name": "X670小雕（9600X）",
+      "cat": "bundle"
+    },
+    {
+      "brand": "海盗船",
+      "name": "三星 8G",
+      "cat": "ram"
+    },
+    {
+      "brand": "玖合",
+      "name": "海力士 Adie16G*2",
+      "cat": "ram"
+    },
+    {
+      "brand": "玖合",
+      "name": "海力士CJR16G*2",
+      "cat": "ram"
+    },
+    {
+      "brand": "精粤",
+      "name": "b760M 主板 安装cpu的时候掉下去了针脚砸坏了",
+      "cat": "board"
+    },
+    {
+      "brand": "芝奇",
+      "name": "海力士 Adie 16G*2",
+      "cat": "ram"
+    },
+    {
+      "brand": "芝奇",
+      "name": "海力士CJR8G*2",
+      "cat": "ram"
+    },
+    {
+      "brand": "英特尔",
+      "name": "12100f",
+      "cat": "cpu"
+    },
+    {
+      "brand": "英特尔",
+      "name": "12400f",
+      "cat": "cpu"
+    },
+    {
+      "brand": "英特尔",
+      "name": "14600kf",
+      "cat": "cpu"
+    },
+    {
+      "brand": "英特尔",
+      "name": "8600k",
+      "cat": "cpu"
+    },
+    {
+      "brand": "英特尔",
+      "name": "I512490F盒装搭配微星PRO H610M",
+      "cat": "bundle"
+    },
+    {
+      "brand": "英睿达",
+      "name": "镁光8G*2",
+      "cat": "ram"
+    },
+    {
+      "brand": "西数",
+      "name": "sn5000 2t",
+      "cat": "ssd"
+    },
+    {
+      "brand": "金士顿",
+      "name": "nv2 512g",
+      "cat": "ssd"
+    },
+    {
+      "brand": "金士顿",
+      "name": "海力士CJR 8G*2",
+      "cat": "ram"
+    },
+    {
+      "brand": "金百达",
+      "name": "海力士CJR8G*2",
+      "cat": "ram"
+    },
+    {
+      "brand": "金百达",
+      "name": "海力士 Mdie 24G*2",
+      "cat": "ram"
+    },
+    {
+      "brand": "铠侠",
+      "name": "rc20 1t",
+      "cat": "ssd"
+    },
+    {
+      "brand": "铠侠",
+      "name": "sd10 1t",
+      "cat": "ssd"
+    },
+    {
+      "brand": "铠侠",
+      "name": "sd10 2t",
+      "cat": "ssd"
+    },
+    {
+      "brand": "铠侠",
+      "name": "se10 2t",
+      "cat": "ssd"
+    },
+    {
+      "brand": "铠侠",
+      "name": "vd10 2t",
+      "cat": "ssd"
+    },
+    {
+      "brand": "铭瑄",
+      "name": "B650挑战者",
+      "cat": "board"
+    },
+    {
+      "brand": "铭瑄",
+      "name": "B760M 终结者D4",
+      "cat": "board"
+    },
+    {
+      "brand": "铭瑄",
+      "name": "B760m 终结者D4 wifi",
+      "cat": "board"
+    },
+    {
+      "brand": "铭瑄",
+      "name": "B760挑战者",
+      "cat": "board"
+    },
+    {
+      "brand": "铭瑄",
+      "name": "B760挑战者wifi(12600KF)",
+      "cat": "bundle"
+    },
+    {
+      "brand": "阿斯加特",
+      "name": "海力士 Adie 16G*2",
+      "cat": "ram"
+    },
+    {
+      "brand": "阿斯加特",
+      "name": "长鑫 8G*2",
+      "cat": "ram"
+    }
+  ]
 }

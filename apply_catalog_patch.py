@@ -43,6 +43,42 @@ def _find_part(catalog, brand, name):
     return None
 
 
+def _part_resolver(catalog, patch, allow_medium=False):
+    """返回 resolve(brand, name) -> (part 或 None, 被并入的 keep 或 None)。
+
+    算的是 apply_patch 真正落盘时的那份 part 集合：品牌改名先跑，型号合并再跑，
+    part_cats 最后跑，那时被改名的 part 已经换了品牌、被合并的已经不存在。
+    拿合并前的库校验 part_cats 会放行「给一条即将消失的 part 定品类」，到写盘才崩。
+    品牌写改名前或改名后的写法都认——补丁是人手写的，两种都会出现。
+    allow_medium 必须和这次执行用的一致：没放行的 medium 合并不会跑，
+    它的 fold 就还活着，判成「会被合并掉」是假红。
+    """
+    renamed = {e['from']: e['to'] for e in patch.get('brand_renames', [])
+               if e.get('from') and e.get('to')}
+
+    def final_brand(brand):
+        return renamed.get(brand, brand)
+
+    merged_away = {}
+    for entry in patch.get('part_merges', []):
+        if entry.get('confidence') == 'medium' and not allow_medium:
+            continue
+        for fold in entry.get('fold', []):
+            merged_away[(final_brand(entry.get('brand')), m.norm_key(fold))] = entry.get('keep')
+
+    surviving = {}
+    for p in catalog['parts']:
+        key = (final_brand(p.get('brand')), m.norm_key(p.get('name')))
+        if key not in merged_away:
+            surviving[key] = p
+
+    def resolve(brand, name):
+        key = (final_brand(brand), m.norm_key(name))
+        return surviving.get(key), merged_away.get(key)
+
+    return resolve
+
+
 def validate(catalog, patch, allow_medium=False):
     """返回错误列表；空列表 == 可应用。不修改 catalog。"""
     errors = []
@@ -98,12 +134,18 @@ def validate(catalog, patch, allow_medium=False):
             else:
                 seen_fold[key] = keep
 
+    resolve = _part_resolver(catalog, patch, allow_medium=allow_medium)
     for entry in patch.get('part_cats', []):
         brand, name, cat = entry.get('brand'), entry.get('name'), entry.get('cat')
         if cat not in KNOWN_CATS:
             errors.append('cat 非法: %s/%s -> %s（合法: %s）'
                           % (brand, name, cat, sorted(KNOWN_CATS)))
-        elif _find_part(catalog, brand, name) is None:
+            continue
+        part, merged_into = resolve(brand, name)
+        if merged_into is not None:
+            errors.append('part_cats 写给了会被合并掉的名字: %s/%s（合并进 %s，品类请写给 %s）'
+                          % (brand, name, merged_into, merged_into))
+        elif part is None:
             errors.append('part_cats 指向不存在的 part: %s/%s' % (brand, name))
     return errors
 
@@ -132,6 +174,9 @@ def apply_patch(patch, allow_medium=False, catalog_file=None, stamp=None):
     if errors:
         raise PatchRejected('\n'.join(errors))
 
+    # 必须在动 catalog 之前建索引：改名和合并都是原地改那些 part 字典，
+    # 索引里存的引用到 part_cats 这一步依然指向同一个对象。
+    resolve = _part_resolver(catalog, patch, allow_medium=allow_medium)
     by_name = {b['canonical']: b for b in catalog['brands']}
 
     for e in patch.get('brand_renames', []):
@@ -167,10 +212,14 @@ def apply_patch(patch, allow_medium=False, catalog_file=None, stamp=None):
         keep['aliases'] = sorted(set(keep['aliases']))
 
     for e in patch.get('part_cats', []):
-        _find_part(catalog, e['brand'], e['name'])['cat'] = e['cat']
+        part, merged_into = resolve(e['brand'], e['name'])
+        if part is None:
+            raise PatchRejected('校验漏了: part_cats 指向不存在的 part %s/%s（合并进 %s）'
+                                % (e['brand'], e['name'], merged_into))
+        part['cat'] = e['cat']
 
     catalog['parts'].sort(key=lambda p: (p['brand'], m.norm_key(p['name'])))
-    m.save_catalog(catalog, stamp)
+    m.save_catalog(catalog, stamp, path=path)
     return catalog
 
 
