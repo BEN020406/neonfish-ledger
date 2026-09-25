@@ -208,3 +208,51 @@ def test_brand_pass_collapses_inter_and_kai侠(real_brand_sandbox):
     assert m.resolve_brand(catalog, '凯侠') == '铠侠'
     assert m.resolve_brand(catalog, 'INTER') == '英特尔'
     assert m.resolve_brand(catalog, 'msi') == '微星'
+
+
+# Task 4：型号层第二遍。先钉住「补丁存在且非空」：
+# 否则下面所有 for 循环一次都不跑，测试会空跑通过。
+REQUIRED_HIGH_MERGES = {("微星", "B650m-b"), ("微星", "H610m-E"), ("微星", "H610m-s"),
+                        ("微星", "B650mgaming plus wifi"), ("微星", "B850迫击炮wifi"),
+                        ("华硕", "B650m-k"), ("铭瑄", "B760M 终结者D4")}
+
+
+def test_patch_declares_the_expected_high_confidence_merges():
+    real = json.load(open(os.path.join(ROOT, 'p3_catalog_patch.json'), encoding='utf-8'))
+    high = {(e['brand'], e['keep']) for e in real['part_merges']
+            if e['confidence'] == 'high'}
+    assert high == REQUIRED_HIGH_MERGES, high ^ REQUIRED_HIGH_MERGES
+    assert any(e['confidence'] == 'medium' for e in real['part_merges']), \
+        '靠品牌常识而非数据本身判断的那些必须标 medium，不能混进 high'
+
+
+def test_high_confidence_merges_fold_tail_notes_into_main_parts(real_brand_sandbox):
+    """每条 high 置信合并都要真把 fold 变成 keep 的别名，且老记录仍可 resolve。
+
+    打在真 catalog.json 的副本上：模块级 CATALOG 只有 4 条 part，装不进
+    H610m-E / B850迫击炮wifi 这些 keep，红会红在「keep 不存在」而不是合并本身。
+    """
+    real = json.load(open(os.path.join(ROOT, 'p3_catalog_patch.json'), encoding='utf-8'))
+    merges = [e for e in real['part_merges'] if e['confidence'] == 'high']
+    ops = {'brand_renames': real['brand_renames'], 'brand_aliases': real['brand_aliases'],
+           'part_merges': merges}
+    catalog = ap.apply_patch(ops, catalog_file=real_brand_sandbox)
+    import app_standalone as m
+    checked = 0
+    for e in merges:
+        for fold in e['fold']:
+            hit = m.resolve_part(catalog, e['brand'], fold)
+            assert hit and m.norm_key(hit['name']) == m.norm_key(e['keep']), fold
+            checked += 1
+    assert checked >= 8, '循环只跑了 %d 次，这条测试没有覆盖任何东西' % checked
+
+
+def test_bundle_rows_are_not_folded_into_other_parts():
+    """§3：板U套装并进主板会虚增利润。带 (CPU) 的行绝不能当别人的别名。"""
+    real = json.load(open(os.path.join(ROOT, 'p3_catalog_patch.json'), encoding='utf-8'))
+    folds = [f for e in real['part_merges'] for f in e['fold']]
+    assert folds, 'part_merges 为空，本测试没有覆盖任何东西'
+    import cat_rules
+    for fold in folds:
+        assert cat_rules.guess_cat('微星', fold) != 'bundle', \
+            '带 CPU 括号的 %s 不该被并进别的 part' % fold
