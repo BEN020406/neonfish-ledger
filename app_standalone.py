@@ -474,6 +474,10 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             # 旧视图照样能盖掉新数据，恰好放过这个头要拦的那次事故。
             stamp = file_stamp()
             self.send_json(load_data(), extra_headers={'X-Ledger-Stamp': stamp})
+        elif path == '/api/catalog':
+            # 与 /api/data 同样的取舍：先取 stamp 再读文件，宁可虚警不可漏判。
+            stamp = catalog_stamp()
+            self.send_json(load_catalog(), extra_headers={'X-Catalog-Stamp': stamp})
         elif path == '/' or path == '/index.html':
             self.send_html()
         elif path.startswith('/api/images/'):

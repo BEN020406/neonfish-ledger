@@ -89,3 +89,35 @@ def test_resolve_brand_falls_back_to_given_text():
 def test_norm_key_ignores_case_spaces_and_fullwidth_parens():
     assert app_standalone.norm_key("H610M-E") == app_standalone.norm_key("h610m-e ")
     assert app_standalone.norm_key("B650M（迫击炮）") == app_standalone.norm_key("b650m(迫击炮)")
+
+
+@pytest.fixture
+def api_catalog(monkeypatch, api, tmp_path):
+    """复用 conftest.api 起的服务，只把 CATALOG_FILE 换进同一次往返的临时目录。"""
+    call, read_ledger, data_path = api
+    path = tmp_path / "catalog.json"
+    path.write_text(json.dumps({"version": 1,
+                                "categories": [dict(c) for c in app_standalone.CATALOG_CATEGORIES],
+                                "brands": [], "parts": []}, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(app_standalone, "CATALOG_FILE", str(path))
+    return call, path
+
+
+def test_get_catalog_returns_body_and_stamp_header(api_catalog):
+    call, path = api_catalog
+    status, body, headers = call("GET", "/api/catalog", with_headers=True)
+    assert status == 200
+    assert [c["key"] for c in body["categories"]][:2] == ["board", "cpu"]
+    assert headers["X-Catalog-Stamp"] == "%d-%s" % (
+        path.stat().st_size,
+        __import__("hashlib").sha256(path.read_bytes()).hexdigest()[:16],
+    )
+
+
+def test_get_catalog_without_file_is_200_and_empty_stamp(monkeypatch, api, tmp_path):
+    call, _, _ = api
+    monkeypatch.setattr(app_standalone, "CATALOG_FILE", str(tmp_path / "nope.json"))
+    status, body, headers = call("GET", "/api/catalog", with_headers=True)
+    assert status == 200
+    assert body["parts"] == []
+    assert headers["X-Catalog-Stamp"] == ""
