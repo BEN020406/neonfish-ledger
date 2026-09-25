@@ -100,10 +100,6 @@
       "aliases": []
     },
     {
-      "canonical": "",
-      "aliases": []
-    },
-    {
       "canonical": "佰维",
       "aliases": []
     },
@@ -133,12 +129,6 @@
     }
   ],
   "parts": [
-    {
-      "cat": "unknown",
-      "brand": "",
-      "name": "CPU针接触不良返场维修一次",
-      "aliases": []
-    },
     {
       "cat": "unknown",
       "brand": "AMD",

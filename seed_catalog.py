@@ -23,7 +23,11 @@ def build_catalog(pairs):
     counter = collections.Counter(pairs)
     groups = collections.defaultdict(list)
     for (brand, model), hits in counter.items():
-        if not model:
+        brand = (brand or '').strip()
+        model = (model or '').strip()
+        # 规格 §4：空 brand 或空 model 的组合不入库。维修、空行这类记录
+        # 没有"型号"可言，硬塞进库会变成一行看不见也选不中的脏键。
+        if not brand or not model:
             continue
         groups[(m.norm_key(brand), m.norm_key(model))].append((brand, model, hits))
 
