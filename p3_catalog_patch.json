@@ -1,6 +1,141 @@
 {
-  "brand_renames": [],
-  "brand_aliases": [],
+  "brand_renames": [
+    {
+      "from": "凯侠",
+      "to": "铠侠"
+    },
+    {
+      "from": "INTER",
+      "to": "英特尔"
+    }
+  ],
+  "brand_aliases": [
+    {
+      "canonical": "微星",
+      "aliases": [
+        "MSI"
+      ]
+    },
+    {
+      "canonical": "华硕",
+      "aliases": [
+        "ASUS"
+      ]
+    },
+    {
+      "canonical": "技嘉",
+      "aliases": [
+        "GIGABYTE"
+      ]
+    },
+    {
+      "canonical": "七彩虹",
+      "aliases": [
+        "COLORFUL"
+      ]
+    },
+    {
+      "canonical": "铭瑄",
+      "aliases": [
+        "MAXSUN"
+      ]
+    },
+    {
+      "canonical": "英特尔",
+      "aliases": [
+        "INTEL"
+      ]
+    },
+    {
+      "canonical": "英睿达",
+      "aliases": [
+        "CRUCIAL"
+      ]
+    },
+    {
+      "canonical": "光威",
+      "aliases": [
+        "GLOWAY"
+      ]
+    },
+    {
+      "canonical": "金士顿",
+      "aliases": [
+        "KINGSTON"
+      ]
+    },
+    {
+      "canonical": "金百达",
+      "aliases": [
+        "KINGBANK"
+      ]
+    },
+    {
+      "canonical": "芝奇",
+      "aliases": [
+        "GSKILL"
+      ]
+    },
+    {
+      "canonical": "阿斯加特",
+      "aliases": [
+        "ASGARD"
+      ]
+    },
+    {
+      "canonical": "宏碁",
+      "aliases": [
+        "ACER"
+      ]
+    },
+    {
+      "canonical": "影驰",
+      "aliases": [
+        "GALAX"
+      ]
+    },
+    {
+      "canonical": "海盗船",
+      "aliases": [
+        "CORSAIR"
+      ]
+    },
+    {
+      "canonical": "佰维",
+      "aliases": [
+        "BIWIN"
+      ]
+    },
+    {
+      "canonical": "西数",
+      "aliases": [
+        "WD",
+        "西部数据"
+      ]
+    },
+    {
+      "canonical": "玖合",
+      "aliases": []
+    },
+    {
+      "canonical": "OLOY",
+      "aliases": []
+    },
+    {
+      "canonical": "AMD",
+      "aliases": []
+    },
+    {
+      "canonical": "精粤",
+      "aliases": []
+    },
+    {
+      "canonical": "铠侠",
+      "aliases": [
+        "KIOXIA"
+      ]
+    }
+  ],
   "part_merges": [],
   "part_cats": []
 }

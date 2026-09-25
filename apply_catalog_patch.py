@@ -57,6 +57,9 @@ def validate(catalog, patch, allow_medium=False):
             errors.append('brand_renames from==to: %s' % src)
         if src not in canonicals:
             errors.append('brand_renames 的 from 不在库里: %s' % src)
+        # 目标名要现在就进集合：后面的别名校验得认得改名新建出来的规范名
+        # （库里只有错字 凯侠，正字 铠侠 是这条补丁自己造的，不给就领不到 KIOXIA）
+        canonicals.add(dst)
 
     for entry in patch.get('brand_aliases', []):
         canonical = entry.get('canonical')

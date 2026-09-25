@@ -7,6 +7,7 @@ import copy
 import hashlib
 import json
 import os
+import shutil
 
 import pytest
 
@@ -104,6 +105,34 @@ def test_medium_entries_are_held_back_without_flag(sandbox):
     assert ap.validate(copy.deepcopy(catalog), p, allow_medium=True) == []
 
 
+def test_rename_created_canonical_can_receive_aliases(sandbox):
+    """改名新建出来的品牌必须能在同一次补丁里领到别名。
+
+    库里现在只有错字 凯侠，正字 铠侠 和它的官方英文名 KIOXIA 是同一条补丁建的；
+    校验若按改名前的 canonical 集合判，KIOXIA 会被误报"canonical 不在库里"。
+    """
+    catalog = copy.deepcopy(CATALOG)
+    catalog["brands"].append({"canonical": "凯侠", "aliases": []})
+    with open(sandbox, "w", encoding="utf-8") as f:
+        json.dump(catalog, f, ensure_ascii=False)
+    p = patch(brand_renames=[{"from": "凯侠", "to": "铠侠"}],
+              brand_aliases=[{"canonical": "铠侠", "aliases": ["KIOXIA"]}])
+    assert errors(catalog, p) == []
+    result = ap.apply_patch(p, catalog_file=sandbox)
+    kioxia = next(b for b in result["brands"] if b["canonical"] == "铠侠")
+    assert "KIOXIA" in kioxia["aliases"]
+    assert "凯侠" in kioxia["aliases"]
+
+
+def test_alias_colliding_with_rename_target_is_still_rejected():
+    """放宽到改名后的集合，不能放宽到允许别名撞规范名。"""
+    catalog = copy.deepcopy(CATALOG)
+    catalog["brands"].append({"canonical": "凯侠", "aliases": []})
+    p = patch(brand_renames=[{"from": "凯侠", "to": "铠侠"}],
+              brand_aliases=[{"canonical": "英特尔", "aliases": ["铠侠"]}])
+    assert any("撞上" in e for e in ap.validate(catalog, p))
+
+
 def test_rejects_merge_that_crosses_category(sandbox):
     """把水冷并进主板会同时让散热少一笔、主板多一笔，利润全歪 —— 第 6 条规则。"""
     catalog = json.load(open(sandbox, encoding="utf-8"))
@@ -147,3 +176,35 @@ def test_apply_merges_and_keeps_history_resolvable(sandbox):
     import app_standalone as m
     hit = m.resolve_part(catalog, "微星", "PRO B650M-B 主板")
     assert hit and hit["name"] == "B650M-B"
+
+
+@pytest.fixture
+def real_brand_sandbox(tmp_path, monkeypatch):
+    """品牌层要打在真 catalog.json 的品牌清单上，不能打在模块级 CATALOG 上。
+
+    模块级 CATALOG 只有微星/英特尔两个品牌，真实补丁里其余 21 条 brand_aliases
+    会被 validate() 判成「canonical 不在库里」，用例永远绿不了；而计划预期的红字
+    是 `assert '凯侠' not in names` —— 只有真品牌清单（凯侠/INTER 都在库里）
+    才报得出那条。所以拷一份真库到 tmp，两个 CATALOG_FILE 一起 patch，照样不碰真库。
+    """
+    path = tmp_path / "catalog.json"
+    shutil.copyfile(os.path.join(ROOT, "catalog.json"), str(path))
+    monkeypatch.setattr(ap, "CATALOG_FILE", str(path))
+    import app_standalone as m
+    monkeypatch.setattr(m, "CATALOG_FILE", str(path))
+    return str(path)
+
+
+def test_brand_pass_collapses_inter_and_kai侠(real_brand_sandbox):
+    """跑完真实的 p3_catalog_patch.json 里品牌层，结果必须落在库上而不是只在测试里。"""
+    real = json.load(open(os.path.join(ROOT, 'p3_catalog_patch.json'), encoding='utf-8'))
+    brand_ops = {k: real[k] for k in ('brand_renames', 'brand_aliases')}
+    ap.apply_patch(brand_ops, catalog_file=real_brand_sandbox)
+    catalog = json.load(open(real_brand_sandbox, encoding='utf-8'))
+    names = {b['canonical'] for b in catalog['brands']}
+    assert '凯侠' not in names and '铠侠' in names
+    assert '英特尔' in names and 'INTER' not in names
+    import app_standalone as m
+    assert m.resolve_brand(catalog, '凯侠') == '铠侠'
+    assert m.resolve_brand(catalog, 'INTER') == '英特尔'
+    assert m.resolve_brand(catalog, 'msi') == '微星'
