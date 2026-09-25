@@ -990,3 +990,9 @@ cd "G:/claude code" && git add index.html tests/test_ledger_api.py && git commit
 3. **「尾注顶掉关键词」不靠算法，靠库里的短别名。** `mag b650m mortar 针脚坏` 里「针脚坏」替换掉了别名中的 `WIFI`，任何字符串包含规则都命中不了 —— 解法是给该 part 补一条短别名 `MAG B650M MORTAR`。这条规则要在 P3/P4 的说明里反复提醒：**别名要包含"能当子串的短形式"**，这是人工第二遍存在的理由，不是算法缺陷。
 4. **用例表 12 → 13 条**（新增上面那条 MSI）。覆盖上文的测试计数预期：Task 2 结束 `19 passed`，Task 3 `21`，Task 4 `29`，Task 5 `33`，Task 6 全量 `213`（176 旧 + 4 静态契约 + 33 catalog）。判断标准不变：**只增不减**。
 5. `tests/fixtures/` 本来就存在（放着 `ledger_empty_orders.json` 等），不需要新建。
+6. **Task 4 的计划正文有四处缺陷，已按下列方式落地（commit `7de8f67` 及后续）**：
+   - `_upsert` 辅助函数漏传 `with_headers=True` → 5 条按三元组解包的测试直接 `ValueError`。已补。
+   - `test_upsert_accepts_bad_json_as_400` 绕过 helper 直接 `call(...)`，同样漏 `with_headers=True`。已补。
+   - `api_catalog` fixture 把 `brands` 播种成 `[]`，等于把"凯侠→铠侠"这条被测契约抹掉；改成带上 `resolve_cases.json` 里的同一份 brands。
+   - **实现逻辑错（最严重）**：`handle_catalog_upsert` 原本只按**新名**在库里找 part，改名时找不到旧条目 → 新建一条、旧的残留，品牌总览凭空多一行，正是该端点要避免的后果。已改成先用 `old_name`（没给才用 `name`）定位，命中后原地换 `name`、旧名进 `aliases`。
+7. **Task 4 结束的真实计数是 28 passed**（Task 3 后 21 + 7 条 upsert 测试；`_upsert` 是辅助函数不被收集）。上面第 4 条写的 29 是我按"8 条测试"误算，往下的 Task 5、6 预期相应减 1：Task 5 结束 `32`、Task 6 全量 `212`。
