@@ -1581,3 +1581,189 @@ def test_both_cat_write_paths_reject_every_illegal_shape(api, bad):
     status, body = call("PUT", "/api/data/0", {"cat": bad})
     assert status == 400, body
     assert load() == before, "非法 cat 已经落盘"
+
+
+# ─── P3 Task 8：前端品类维度（品类列 / 「品类待确认」/ 行内改判）───
+# 沿用本文件既有的源码静态扫描写法（_index_js / _top_level_fn）。
+# 判定口径那一条另外配一例真跑 JS 的行为用例：计划正文写的 `if (i.cat) return false`
+# 在「255 条全带 cat、未判定的是字面量 unknown」这份账本上是恒假 —— 入口做成死的，
+# 光看文本断言看不出来，所以把它交给 node 跑一遍。
+
+def _js_with_node():
+    """没有 node 就跳过这条，别把「跑不了」写成「跑过了」。"""
+    import shutil
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("需要 node 才能真正执行一遍 JS 判定")
+    return node
+
+
+def _run_node(snippet):
+    import subprocess
+    node = _js_with_node()
+    proc = subprocess.run([node, "-e", snippet], capture_output=True,
+                          text=True, encoding="utf-8", timeout=60)
+    assert proc.returncode == 0, "node 跑这段 JS 就炸了：%s" % (proc.stderr or proc.stdout,)
+    return json.loads(proc.stdout.strip())
+
+
+def test_parse_items_carries_the_record_cat():
+    """parseItems 必须把记录自己的 cat 带进 items。
+
+    不带的话品类筛选与行内下拉都读不到值，整条 Task 8 在数据源头就断了；
+    而它不会报错，只会安静地显示成「全部没有品类」。
+    """
+    body = _top_level_fn(_index_js(), "function parseItems(raw)")
+    assert re.search(r"cat:\s*\(r\.cat \|\| ''\)\.trim\(\)", body), \
+        "parseItems 没带出 cat，品类筛选与行内下拉都拿不到值"
+
+
+def test_category_pending_chip_exists_and_is_not_the_always_false_shape():
+    """「品类待确认」入口必须存在，且判定不能是计划正文那种恒假写法。
+
+    账本里每条都带 cat，未判定的那条值是 'unknown'（truthy）。
+    `if (i.cat) return false` 会把它们一起挡掉 → 计数永远 0、chip 永远 hidden。
+    """
+    src = _index_js()
+    assert "const UNKNOWN_CAT = 'unknown';" in src, "没有把 unknown 这个占位品类显式命名"
+
+    m = re.search(r"<button[^>]*id=\"catChip\"[^>]*>", src)
+    assert m, "筛选区没有「品类待确认」chip"
+    tag = m.group(0)
+    assert "filter-chip" in tag, "chip 没复用既有 filter-chip 样式类"
+    assert "toggleCatPending" in tag and "hidden" in tag, "chip 少了 toggle 或默认 hidden"
+    tail = src[m.end():m.end() + 200]
+    assert "品类待确认" in tail, "chip 文案不是「品类待确认」"
+    assert 'id="catCount"' in tail, "chip 没带计数"
+
+    body = _top_level_fn(src, "function pendingCat(i)")
+    assert "if (i.cat) return false" not in body, \
+        "pendingCat 还是恒假写法：unknown 也是 truthy，chip 永远是 0"
+    assert re.search(r"i\.cat\s*&&\s*i\.cat\s*!==\s*UNKNOWN_CAT", body), \
+        "pendingCat 没把 unknown 当作「记录自己没有可信品类」"
+    assert re.search(r"part\.cat\s*===\s*UNKNOWN_CAT", body), \
+        "pendingCat 没排除知识库归出 unknown 的情况"
+
+
+def test_pending_cat_behaviour_on_the_migrated_ledger_shape():
+    """把 index.html 里的 pendingCat/effectiveCat 抠出来真跑一遍，钉住四种行。
+
+    静态断言只能证明"写了这句话"，证明不了"unknown 真的算待确认"。
+    """
+    src = _index_js()
+    assert "function effectiveCat(i)" in src, "没有 effectiveCat：下拉没有可复核的默认值"
+    snippet = "\n".join([
+        "const UNKNOWN_CAT = 'unknown';",
+        "const KB = {};",
+        "function resolvePart(b, m) { return KB[b + '|' + m] || null; }",
+        _top_level_fn(src, "function pendingCat(i)"),
+        _top_level_fn(src, "function effectiveCat(i)"),
+        "KB['微星|B650M GAMING WIFI'] = { name: 'B650M GAMING WIFI', cat: 'board' };",
+        "KB['杂牌|X'] = { name: 'X', cat: 'unknown' };",
+        "const rows = [",
+        "  { cat: 'unknown', brand: '', model: 'CPU针接触不良返场维修一次' },",
+        "  { cat: 'unknown', brand: '微星', model: 'B650M GAMING WIFI' },",
+        "  { cat: '', brand: '微星', model: 'B650M GAMING WIFI' },",
+        "  { cat: '', brand: '杂牌', model: 'X' },",
+        "  { cat: 'board', brand: '微星', model: 'B650M GAMING WIFI' },",
+        "];",
+        "console.log(JSON.stringify({ pending: rows.map(pendingCat), cat: rows.map(effectiveCat) }));",
+    ])
+    out = _run_node(snippet)
+    # 1 判不出来 → 待确认；2/3 记录自己没有/空但库归得出 → 不算待确认；
+    # 4 库里那条也是 unknown → 待确认；5 记录自己有可信品类 → 不算。
+    assert out["pending"] == [True, False, False, True, False], out
+    # 归得出的行，下拉默认就得停在库判的那个品类上（给人复核的起点）。
+    assert out["cat"] == ["unknown", "board", "board", "unknown", "board"], out
+
+
+def test_category_chip_counter_and_active_state_are_wired_into_update_stats():
+    """计数、hidden、高亮三件事都必须在 updateStats 里跟着品类判定算。
+
+    少一条就是 chip 长在那里但永远不亮 / 永远不消失，等于没有入口。
+    """
+    body = _top_level_fn(_index_js(), "function updateStats()")
+    assert "document.getElementById('catChip')" in body, "updateStats 没管品类 chip"
+    assert re.search(r"reduce\(\(n,\s*i\)\s*=>\s*n\s*\+\s*\(pendingCat\(i\)", body), \
+        "品类待确认的数量不是按 pendingCat 算的"
+    assert re.search(r"catChip\.hidden\s*=\s*catPending\s*===\s*0", body), \
+        "计数为 0 时品类 chip 没有隐藏"
+    assert re.search(r"catChip\.classList\.toggle\('on',\s*catPendingOnly\)", body), \
+        "品类 chip 的高亮没跟着筛选状态走"
+    assert re.search(r"document\.getElementById\('catCount'\)\.textContent\s*=\s*catPending", body), \
+        "品类待确认的计数没写进 chip"
+
+
+def test_the_two_inline_filters_have_separate_state_and_are_mutually_exclusive():
+    """品类筛选另起一个状态变量，并且和「待补售价」互斥。
+
+    复用 pendingOnly 会把两个入口焊成一个；互不排斥的话两个 chip 同时高亮，
+    筛出来的是谁的子集没人说得清 —— 这是个账本，行数对不上就是钱对不上。
+    """
+    src = _index_js()
+    assert re.search(r"^let catPendingOnly = false;", src, re.M), "品类筛选没有独立状态变量"
+    assert re.search(r"^let pendingOnly = false;", src, re.M), "待补售价的原有状态被挪走了"
+
+    toggle_pending = _top_level_fn(src, "function togglePending()")
+    toggle_cat = _top_level_fn(src, "function toggleCatPending()")
+    assert re.search(r"if \(pendingOnly\) catPendingOnly = false;", toggle_pending), \
+        "打开待补售价时没关掉品类筛选"
+    assert re.search(r"if \(catPendingOnly\) pendingOnly = false;", toggle_cat), \
+        "打开品类筛选时没关掉待补售价"
+
+    # 两个 chip 都只在型号明细视图有意义：点亮时把视图切过去（沿用既有做法）
+    assert "focusModelsView()" in toggle_cat and "focusModelsView()" in toggle_pending
+
+    seg = src[src.index("getElementById('tabs').addEventListener"):
+              src.index("getElementById('tableHead').addEventListener")]
+    assert re.search(r"currentView !== 'models'[\s\S]{0,120}?pendingOnly = false"
+                     r"[\s\S]{0,60}?catPendingOnly = false", seg), \
+        "离开型号明细时没把两个筛选一起复位"
+
+    body = _top_level_fn(src, "function renderModels()")
+    assert re.search(r"catPendingOnly\s*\?\s*all\.filter\(pendingCat\)", body), \
+        "renderModels 没按品类筛选过 visible"
+    assert "!i.sell" in body, "待补售价那条既有筛选被改坏了"
+
+
+def test_inline_category_select_is_rendered_under_its_own_header_column():
+    """品类下拉排在利润率之后、图片之前，选项来自 CATALOG.categories，写盘用原始下标。
+
+    origIdx 那一格错下去不是显示错，是把品类写到另一条记录上。
+    """
+    src = _index_js()
+    body = _top_level_fn(src, "function renderModels()")
+    assert "mkTh('cat','品类')" in body, "表头没有品类这一列"
+    assert body.index("mkTh('margin','利润率')") < body.index("mkTh('cat','品类')") < \
+        body.index("<th>图片</th>"), "品类列没排在利润率之后、图片之前"
+    assert "${catSelect(i)}" in body, "行模板里没渲染品类下拉"
+
+    seg = _top_level_fn(src, "function catSelect(i)")
+    assert "CATALOG.categories" in seg, "下拉的 8 个选项不是取自知识库品类表"
+    assert 'class="cat-select' in seg, "下拉没挂上自己的样式类（默认灰 select 会破坏霓虹主题）"
+    assert "event.stopPropagation()" in seg, "下拉没挡住行点击"
+    assert re.search(r"saveCatPatch\(\$\{i\.origIdx\},\s*this\.value\)", seg), \
+        "行内改判没拿原始下标 origIdx，会写到另一条记录上"
+
+
+def test_inline_category_write_reuses_the_existing_inline_put_channel():
+    """行内改判照 deleteItem 的形状写：writeHeaders() 无参回落全局版本。
+
+    自己新造一套 fetch/版本逻辑的话，这条路径就绕开了 409 复核；
+    body 里回填整条 record 更糟 —— 弹窗那份旧值会把别人刚改的字段盖回去。
+    """
+    src = _index_js()
+    body = _top_level_fn(src, "async function saveCatPatch(idx, value)")
+    assert re.search(r"fetch\(API \+ '/' \+ idx", body), "没走既有 PUT 通道"
+    assert "method: 'PUT'" in body, "不是 PUT"
+    assert re.search(r"writeHeaders\(\)", body), "没调用无参 writeHeaders()（行内写回落全局版本）"
+    assert "_ledgerStamp" not in body and "_formStamp" not in body, \
+        "行内改判自己碰版本号了，等于新造一套版本逻辑"
+    assert "editId" not in body and "saveItem(" not in body, "蹭了弹窗表单的写盘"
+    assert re.search(r"if \(res\.status === 409\) return await handleConflict\(\)", body), \
+        "409 没交给统一的 handleConflict"
+    assert re.search(r"body:\s*JSON\.stringify\(\{ cat: value \}\)", body), \
+        "请求体不是只带 cat —— 后端逐键赋值，多带的字段会覆盖别人刚写的值"
+    assert "_ledgerBusy" in body and "LEDGER_BUSY_MSG" in body, "少了行内写共用的收尾窗口守卫"
+    assert "await fetchItems()" in body and "window._tplCache = null" in body, \
+        "写完没重拉列表/没清模板缓存，与行内删除的既有形状不一致"

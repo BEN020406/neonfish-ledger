@@ -473,6 +473,42 @@ hr.divider {
   box-shadow: 0 0 22px rgba(255,214,64,0.4);
 }
 
+/* ─── 行内品类下拉 ─── 窄控件不吃行高；只用既有 token，不引入新色号。
+   未判定的那几行整枚转金色，跟上面的金色 chip 同一套语言，一眼能看出哪行在等人复核。 */
+.cat-select {
+  appearance: none; -webkit-appearance: none;
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 0.7rem; font-weight: 500; line-height: 1.35;
+  letter-spacing: 0.02em;
+  color: var(--text2);
+  background-color: rgba(10,16,27,0.9);
+  background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='7' viewBox='0 0 9 7'%3E%3Cpath d='M1.2 2.2l3.3 3 3.3-3' fill='none' stroke='%2300e5ff' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 5px center;
+  border: 1px solid var(--border); border-radius: 3px;
+  padding: 2px 18px 2px 8px; min-width: 78px;
+  cursor: pointer; outline: none;
+  transition: all 0.22s cubic-bezier(0.16,1,0.3,1);
+}
+.cat-select:hover, .cat-select:focus {
+  border-color: rgba(0,229,255,0.5);
+  color: var(--cyan);
+  box-shadow: 0 0 14px rgba(0,229,255,0.2), inset 0 0 6px rgba(0,229,255,0.08);
+}
+.cat-select option { background: var(--surface); color: var(--text); }
+.cat-select.pending {
+  color: var(--gold);
+  border-color: rgba(255,214,64,0.4);
+  background-color: rgba(255,214,64,0.07);
+  text-shadow: 0 0 10px rgba(255,214,64,0.35);
+}
+.cat-select.pending:hover, .cat-select.pending:focus {
+  border-color: rgba(255,214,64,0.75);
+  color: var(--gold);
+  box-shadow: 0 0 16px rgba(255,214,64,0.28), inset 0 0 6px rgba(255,214,64,0.1);
+}
+
 /* ─── TOAST ─── */
 #toast {
   position: fixed; left: 50%; bottom: 36px; z-index: 300;
@@ -968,6 +1004,9 @@ tr:hover td { background: rgba(255,255,255,0.01); }
       <button class="filter-chip" id="pendingChip" onclick="togglePending()" hidden>
         待补售价 <b id="pendingCount">0</b>
       </button>
+      <button class="filter-chip" id="catChip" onclick="toggleCatPending()" hidden>
+        品类待确认 <b id="catCount">0</b>
+      </button>
       <input class="search-box" id="search" placeholder="搜索型号 / 品牌..." autocomplete="off">
       <button class="btn primary" onclick="openAddModal()">+ 新增</button>
       <button class="btn" onclick="importCSV()">导入CSV</button>
@@ -1248,6 +1287,28 @@ function resolvePart(brand, model) {
   return candidates[0][1];
 }
 
+// ─── 品类判定 ────────────────────────────
+// 迁移把 255 条记录都写上了 cat，所以"记录有没有 cat"根本筛不出东西：
+// 没判出来的那几条值是字面量 'unknown'（truthy）。判定必须显式把它当成"没有可信品类"，
+// 否则「品类待确认」永远是 0、chip 永远藏着，§3 里"unknown 是兜底但不是垃圾桶"就落不了地。
+const UNKNOWN_CAT = 'unknown';
+
+// 记录自己没有可信品类，且知识库也归不出来 —— 归不出品类的行必须留在视野里。
+function pendingCat(i) {
+  if (i.cat && i.cat !== UNKNOWN_CAT) return false;
+  const part = resolvePart(i.brand, i.model);
+  return !part || !part.cat || part.cat === UNKNOWN_CAT;
+}
+
+// 行内下拉停在哪一格：记录自己的可信品类优先；那条没有就退回知识库判出来的品类，
+// 让人从"库认为是什么"开始复核，而不是从空白开始选。两边都没有就落 'unknown'（待确认）。
+function effectiveCat(i) {
+  if (i.cat && i.cat !== UNKNOWN_CAT) return i.cat;
+  const part = resolvePart(i.brand, i.model);
+  if (part && part.cat && part.cat !== UNKNOWN_CAT) return part.cat;
+  return i.cat || UNKNOWN_CAT;
+}
+
 // 一次性拉知识库；失败就让 BRAND_INDEX / PART_INDEX 空着，
 // 规范名全部退回原值，统计照旧能看，记账绝不被它阻塞。
 async function loadCatalog() {
@@ -1276,6 +1337,9 @@ function parseItems(raw) {
     // 归并用的规范名：命不中就退回原值，绝不为空白名单丢记录
     canonicalBrand: resolveBrand(r.brand) || (r.brand || '').trim(),
     canonicalModel: (resolvePart(r.brand, r.model) || {}).name || (r.model || '').trim(),
+    // 记录自己那份品类快照（Task 7 迁移写进账本的）。空串 = 这条没判过，
+    // 'unknown' = 判过但归不出来，两者在 pendingCat 里同等对待。
+    cat: (r.cat || '').trim(),
     cost: safeFloat(r.cost),
     sell: safeFloat(r.sell),
     sn: r.sn || '',
@@ -1444,6 +1508,32 @@ async function deleteItem(idx) {
   return true;
 }
 
+// 行内改判品类：形状照 deleteItem（行内写没有表单，版本一律回落全局那份），
+// 不蹭弹窗表单的写盘 —— 那条绑在弹窗锁住的版本与弹窗的下标上。
+// 请求体只带 cat：后端是逐键赋值，多回填一个字段就是把别人刚写的值盖回去。
+async function saveCatPatch(idx, value) {
+  // 上一条的写盘收尾还在进行中，这时发 PUT 必然撞自己刚写下的账本、白吃一次虚警 409。
+  // 重绘一次把这一格退回盘上的真值 —— 下拉和用户刚点的选择已经不一致了，不能就这么留着。
+  if (_ledgerBusy) { showToast(LEDGER_BUSY_MSG, 'err'); render(); return; }
+  const res = await fetch(API + '/' + idx, {
+    method: 'PUT', headers: writeHeaders(), body: JSON.stringify({ cat: value }),
+  });
+  if (res.status === 409) return await handleConflict();
+  if (!res.ok) {
+    // 下拉只给得出那 8 个合法 key，走到这里说明请求被更早的环节挡了。
+    // 同样重拉一次：界面必须停在账本里真实的那份品类，而不是一个没写进去的选择。
+    const body = await res.json().catch(() => ({}));
+    showToast('品类写入失败：' + (body.error || res.status), 'err');
+    await fetchItems();
+    return;
+  }
+  await fetchItems();
+  window._tplCache = null;
+  const name = (CATALOG.categories || []).find(c => c.key === value);
+  showToast('品类已改为「' + ((name && name.name) || value) + '」');
+  return true;
+}
+
 // ─── STATS ──────────────────────────────
 function fmt(n) { return n.toLocaleString('zh-CN', { minimumFractionDigits:0, maximumFractionDigits:0 }); }
 
@@ -1467,6 +1557,13 @@ function updateStats() {
   chip.hidden = pending === 0;
   chip.classList.toggle('on', pendingOnly);
   document.getElementById('pendingCount').textContent = pending;
+
+  // 品类待确认：按 pendingCat 的口径算（记录自己没有可信品类且知识库也归不出来）。
+  const catPending = items.reduce((n, i) => n + (pendingCat(i) ? 1 : 0), 0);
+  const catChip = document.getElementById('catChip');
+  catChip.hidden = catPending === 0;
+  catChip.classList.toggle('on', catPendingOnly);
+  document.getElementById('catCount').textContent = catPending;
 }
 
 // ─── BRAND AGGREGATION ──────────────────
@@ -1495,6 +1592,9 @@ let searchTerm = '';
 let sortKey = null;
 let sortDir = 'asc';
 let pendingOnly = false;
+// 品类待确认是另一个独立开关：和「待补售价」互斥（见两个 toggle），不复用同一个变量，
+// 否则两个 chip 会一起高亮、筛出来的行是谁的子集没人说得清。
+let catPendingOnly = false;
 
 function sortArrow(key) {
   if (sortKey !== key) return ' <span class="sort-arrow">▴▾</span>';
@@ -1512,12 +1612,26 @@ function sortByKey(arr, key) {
   });
 }
 
+// 两个筛选都只在型号明细这一张表上有意义：从别的视图点亮 chip 时先把视图切过去。
+// 两个 toggle 各抄一遍的话，新加的第三个筛选必然漏掉其中一处。
+function focusModelsView() {
+  if (currentView === 'models') return;
+  currentView = 'models';
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === 'models'));
+}
+
 function togglePending() {
   pendingOnly = !pendingOnly;
-  if (pendingOnly && currentView !== 'models') {
-    currentView = 'models';
-    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === 'models'));
-  }
+  // 互斥：点亮这一个就把另一个关掉，两个 chip 同时高亮的筛选结果没人能解释。
+  if (pendingOnly) catPendingOnly = false;
+  if (pendingOnly) focusModelsView();
+  render();
+}
+
+function toggleCatPending() {
+  catPendingOnly = !catPendingOnly;
+  if (catPendingOnly) pendingOnly = false;
+  if (catPendingOnly) focusModelsView();
   render();
 }
 
@@ -1614,9 +1728,27 @@ function splitActionBtn(item) {
   return `<button class="icon-btn" title="拆单" onclick="event.stopPropagation(); openSplitModal(${item.id})" aria-label="拆单"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></button>`;
 }
 
+// 行内品类下拉。8 个选项一律取自知识库品类表（CATALOG.categories），JS 这边不另抄一份清单，
+// 否则后端加一类品类就得记着来改这里。选中项是 effectiveCat：记录自己没有可信品类时，
+// 停在知识库判出来的那一格上，给人复核的起点而不是空白。
+// 知识库整个没加载上时（离线/500）选项表是空的 —— 那种情况给个能点但写不出值的空下拉
+// 比给个占位符更坏，所以降级成一根破折号，与图片格的空态同款。
+function catSelect(i) {
+  const cats = CATALOG.categories || [];
+  if (!cats.length) return '<span style="color:var(--muted)">—</span>';
+  const cur = effectiveCat(i);
+  const opts = cats.map(c => `<option value="${esc(c.key)}"${c.key === cur ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
+  // 未判定的行整枚转金色，与工具栏那个金色 chip 同一套语言。
+  const tone = pendingCat(i) ? ' pending' : '';
+  // onclick 也要挡一下：不挡的话点这张下拉会先触发所在行的点击（展开/编辑）。
+  return `<select class="cat-select${tone}" title="改判品类" aria-label="品类" onclick="event.stopPropagation()" onchange="event.stopPropagation(); saveCatPatch(${i.origIdx}, this.value)">${opts}</select>`;
+}
+
 function renderModels() {
   const all = items.map((i, idx) => ({ ...i, origIdx: i.id }));
-  const visible = pendingOnly ? all.filter(i => !i.sell) : all;
+  // 两个筛选各自过一道（toggle 里已经保证它们不会同时开着）。
+  const catFiltered = catPendingOnly ? all.filter(pendingCat) : all;
+  const visible = pendingOnly ? catFiltered.filter(i => !i.sell) : catFiltered;
   const filtered = searchTerm
     ? visible.filter(i => i.brand.toLowerCase().includes(searchTerm.toLowerCase()) || i.model.toLowerCase().includes(searchTerm.toLowerCase()))
     : visible;
@@ -1626,7 +1758,7 @@ function renderModels() {
   const mkTh = (key, label) => `<th data-sort="${key}"${sortKey === key ? ' class="sorted"' : ''}>${label}${sortArrow(key)}</th>`;
 
   document.getElementById('tableHead').innerHTML = `
-    <tr>${mkTh('brand','品牌')}${mkTh('model','型号')}${mkTh('cost','成本')}${mkTh('sell','售价')}${mkTh('profit','利润')}${mkTh('margin','利润率')}<th>图片</th><th>操作</th></tr>`;
+    <tr>${mkTh('brand','品牌')}${mkTh('model','型号')}${mkTh('cost','成本')}${mkTh('sell','售价')}${mkTh('profit','利润')}${mkTh('margin','利润率')}${mkTh('cat','品类')}<th>图片</th><th>操作</th></tr>`;
 
   document.getElementById('tableBody').innerHTML = sorted
     .map(i => {
@@ -1648,6 +1780,7 @@ function renderModels() {
       <td>¥${fmt(i.cost)}</td><td>¥${fmt(i.sell)}</td>
       <td class="${pClass}">¥${fmt(i.profit)}</td>
       <td><span class="badge ${i.profit >= 0 ? 'badge-profit' : 'badge-loss'}">${i.margin.toFixed(1)}%</span></td>
+      <td>${catSelect(i)}</td>
       <td>${imgCell}</td>
       <td>
         <div class="actions">
@@ -1843,7 +1976,9 @@ document.getElementById('tabs').addEventListener('click', e => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     e.target.classList.add('active');
     currentView = e.target.dataset.view;
-    if (currentView !== 'models') pendingOnly = false;
+    // 两个筛选都只在型号明细这张表上成立：切走就一起复位，
+    // 只复位一个的话切回来列表会凭空少一截（没人知道自己还筛着）。
+    if (currentView !== 'models') { pendingOnly = false; catPendingOnly = false; }
     sortKey = null; sortDir = 'asc';
     render();
   }
