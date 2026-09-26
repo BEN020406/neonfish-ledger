@@ -1726,10 +1726,11 @@ def test_the_two_inline_filters_have_separate_state_and_are_mutually_exclusive()
     assert "!i.sell" in body, "待补售价那条既有筛选被改坏了"
 
 
-def test_inline_category_select_is_rendered_under_its_own_header_column():
+def test_inline_category_cell_is_rendered_under_its_own_header_column():
     """品类下拉排在利润率之后、图片之前，选项来自 CATALOG.categories，写盘用原始下标。
 
     origIdx 那一格错下去不是显示错，是把品类写到另一条记录上。
+    现在中间多了一跳（按钮 → 共享面板 → onPick），所以两跳都要盯住。
     """
     src = _index_js()
     body = _top_level_fn(src, "function renderModels()")
@@ -1742,8 +1743,10 @@ def test_inline_category_select_is_rendered_under_its_own_header_column():
     assert "CATALOG.categories" in seg, "下拉的 8 个选项不是取自知识库品类表"
     assert 'class="cat-select' in seg, "下拉没挂上自己的样式类（默认灰 select 会破坏霓虹主题）"
     assert "event.stopPropagation()" in seg, "下拉没挡住行点击"
-    assert re.search(r"saveCatPatch\(\$\{i\.origIdx\},\s*this\.value\)", seg), \
-        "行内改判没拿原始下标 origIdx，会写到另一条记录上"
+    assert re.search(r"openCatCombo\(this,\s*\$\{i\.origIdx\}\)", seg), \
+        "按钮没把原始下标 origIdx 交给面板，改判会写到另一条记录上"
+    combo = _top_level_fn(src, "function openCatCombo(btn, origIdx)")
+    assert "saveCatPatch(origIdx," in combo, "面板选中后没把 origIdx 传进写盘函数"
 
 
 def test_inline_category_write_reuses_the_existing_inline_put_channel():
@@ -1851,22 +1854,131 @@ def test_toolbar_actions_group_wraps_so_the_last_button_stays_reachable():
         "换行后不右对齐，掉下去的那半行会孤零零贴在左边"
 
 
-# ─── 品牌格要能选，不只是能手打（用浏览器原生 datalist，不自己造面板）───
+# ─── 四处下拉统一成一套自定义暗色面板（浏览器原生弹出改不了样式，是割裂感的根）───
 
-def test_brand_field_is_wired_to_a_datalist():
-    """#fBrand 必须挂上 list，页面里也必须有那个 datalist。
+def test_no_native_popups_remain_in_the_dropdown_sites():
+    """浏览器原生弹出 CSS 一行都改不了 —— 风格统一只有换自定义面板一条路。
 
-    他的原话是「品牌那里我可以选择 而不是我手动输入」。
-    少了 list 属性，datalist 写了也不显示 —— 而页面不报错，看起来一切正常，
-    只是点开品牌格什么也不弹，跟没做一样。
+    四处：品牌格（原 datalist）、模板格（原 select）、表格行内品类（原 select），
+    型号格则从无到有接同一套面板。只要还剩一个原生控件，那一处就还是白底系统菜单，
+    割裂感只是换了个位置，没有消失。
     """
     src = _index_js()
-    m = re.search(r'<input[^>]*id="fBrand"[^>]*>', src)
-    assert m, "找不到品牌输入框"
-    assert 'list="brandOptions"' in m.group(0), \
-        "品牌格没挂 list，datalist 不会显示，他还是只能手打"
-    assert '<datalist id="brandOptions">' in src, \
-        "页面里没有 brandOptions 这个 datalist，list 指向空处"
+    assert "<datalist" not in src, "品牌格还挂着 datalist，弹出仍由浏览器画"
+    assert 'list="brandOptions"' not in src, "品牌格还指向 datalist"
+    assert "<select" not in src, "页面里还有原生 select（模板/行内品类），弹的还是白底系统菜单"
+    assert 'id="comboPanel"' in src, "页面里没有自定义面板，四处下拉无处可挂"
+
+
+def test_combo_panel_is_painted_from_the_ledger_design_tokens():
+    """面板必须和弹窗同一家族：暗色渐变面、青色细边、高亮行走 cyan token。
+
+    他嫌的就是「选择表出来割裂」；面板若自带一套新色号，统一就变成了又一种割裂。
+    """
+    src = _index_js()
+    rule = _css_rule(src, ".combo-panel")
+    assert "position: fixed" in rule, "不用 fixed 定位就会被表格滚动容器裁掉、跟不住输入框"
+    assert "linear-gradient" in rule, "面板面不是弹窗那套渐变配方，视觉上仍是外来户"
+    assert "rgba(0,229,255" in rule, "边框不在青色族，和弹窗边框对不上"
+    hl = _css_rule(src, ".combo-item.hl, .combo-item:hover")
+    assert "var(--cyan)" in hl, "高亮行不用青色 token，选中态和全局色彩语言脱节"
+    val = _css_rule(src, ".combo-item .combo-val")
+    assert "text-overflow: ellipsis" in val, "长型号不截断会折行，把右侧品牌提示挤掉"
+    assert "min-width: 0" in val, "flex 子项默认 min-width:auto，不写这句 ellipsis 根本不生效"
+
+
+def _model_options(parts, used, resolve_map):
+    # modelOptions 依赖 partKey，partKey 又依赖 normKey：node 里没有整份文件，三个都得搬过去。
+    src = _index_js()
+    js = "\n".join([
+        _top_level_fn(src, "function normKey(text) {"),
+        _top_level_fn(src, "function partKey(brand, key) {"),
+        _top_level_fn(src, "function modelOptions(parts, used, resolve) {"),
+        "const m = %s;" % json.dumps(resolve_map, ensure_ascii=False),
+        "process.stdout.write(JSON.stringify(modelOptions(%s, %s, b => m[b] || b)));"
+        % (json.dumps(parts, ensure_ascii=False), json.dumps(used, ensure_ascii=False)),
+    ])
+    return _run_node(js)
+
+
+def test_model_options_merge_catalog_parts_with_models_already_used():
+    """型号选择表和品牌表同一条规矩：知识库 parts + 账本用过没入库的写法，按归一键去重。
+
+    去重键必须带品牌：同一型号串在两个品牌下是两个不同 part，折成一行就有一个选不到；
+    但账本写 'MSI'、库里写 '微星' 的同一 part 必须折成一行 ——
+    否则型号表自己就在复制统计分叉的老毛病。
+    """
+    got = _model_options(
+        [{"brand": "微星", "name": "B650M GAMING WIFI", "aliases": ["B650M-GAMING-WIFI"]},
+         {"brand": "技嘉", "name": "B650M GAMING WIFI", "aliases": []}],
+        [{"brand": "MSI", "model": "B650M GAMING WIFI"},
+         {"brand": "华硕", "model": "TUF GAMING X570-PLUS"},
+         {"brand": "", "model": ""}],
+        {"MSI": "微星"},
+    )
+    assert got == [
+        {"value": "B650M GAMING WIFI", "hint": "微星"},
+        {"value": "B650M GAMING WIFI", "hint": "技嘉"},
+        {"value": "TUF GAMING X570-PLUS", "hint": "华硕"},
+    ], "实到 %s" % (got,)
+
+
+def _filter_combo(cands, query):
+    js = (
+        _top_level_fn(_index_js(), "function normKey(text) {") + "\n"
+        + _top_level_fn(_index_js(), "function filterCombo(cands, query) {") + "\n"
+        + "process.stdout.write(JSON.stringify(filterCombo(%s, %s)));\n"
+        % (json.dumps(cands, ensure_ascii=False), json.dumps(query, ensure_ascii=False))
+    )
+    return _run_node(js)
+
+
+def test_combo_filter_matches_value_and_hint_case_insensitively():
+    """打字即子串过滤：命中规范名或提示文字都算，大小写空白不敏感。
+
+    他用 datalist 时习惯了「打几个字就收窄」，换自定义面板不能丢这个手感；
+    提示（品牌/别名）也要可搜，否则九十多条型号他只能 eyeball 滚。
+    """
+    got = _filter_combo(
+        [{"value": "微星", "hint": "MSI"},
+         {"value": "B650M GAMING WIFI", "hint": "微星"},
+         {"value": "英特尔", "hint": "INTER / Intel"}],
+        "msi",
+    )
+    assert [o["value"] for o in got] == ["微星"], "hint 命中错：实到 %s" % (got,)
+    got = _filter_combo(
+        [{"value": "微星", "hint": "MSI"},
+         {"value": "B650M GAMING WIFI", "hint": "微星"}],
+        "b650m",
+    )
+    assert [o["value"] for o in got] == ["B650M GAMING WIFI"], "value 命中错：实到 %s" % (got,)
+    assert _filter_combo([], "x") == []
+    assert len(_filter_combo([{"value": "a", "hint": ""}], "")) == 1
+
+
+def test_cat_cell_is_a_button_that_opens_the_shared_combo():
+    """表格行内品类从 select 改 button：保留 .cat-select 那张皮，弹的换成自家面板。
+
+    catSelect 在渲染热路径上每行跑一次；每行塞一份面板 DOM 会爆，
+    所以 button 只负责记「点的是哪一行」，面板全局共用一份。
+    """
+    fn = _top_level_fn(_index_js(), "function catSelect(i) {")
+    assert "<button" in fn, "品类格还不是 button"
+    assert "<select" not in fn, "品类格还在渲染原生 select"
+    assert "openCatCombo(" in fn, "button 没接共享面板，点了没反应"
+
+
+def test_combo_keys_are_intercepted_before_the_modal_submit_handler():
+    """面板开着时 Enter 选中、Esc 关面板，都不能漏给 document 级「回车提交 / Esc 关窗」。
+
+    既有 document keydown 会无条件拿 Enter 去点提交按钮；combo 的监听若注册在它后面，
+    回车选品牌的那一下会把整张表单一起提交 —— 他只会看到弹窗莫名其妙关了。
+    同一目标上监听按注册顺序执行，所以 combo 的监听在源码里必须更靠前。
+    """
+    src = _index_js()
+    combo_at = src.index("COMBO KEYBOARD")
+    submit_at = src.index("if (e.key === 'Enter' && open)")
+    assert combo_at < submit_at, "combo 键盘监听注册在提交监听之后，回车会先被提交吞掉"
 
 
 def _brand_options(brands, used):

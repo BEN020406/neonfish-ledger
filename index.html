@@ -484,6 +484,7 @@ hr.divider {
 .cat-select {
   appearance: none; -webkit-appearance: none;
   display: inline-block;
+  text-align: left;
   font-family: var(--font-display);
   font-size: 0.7rem; font-weight: 500; line-height: 1.35;
   letter-spacing: 0.02em;
@@ -502,7 +503,6 @@ hr.divider {
   color: var(--cyan);
   box-shadow: 0 0 14px rgba(0,229,255,0.2), inset 0 0 6px rgba(0,229,255,0.08);
 }
-.cat-select option { background: var(--surface); color: var(--text); }
 .cat-select.pending {
   color: var(--gold);
   border-color: rgba(255,214,64,0.4);
@@ -514,6 +514,38 @@ hr.divider {
   color: var(--gold);
   box-shadow: 0 0 16px rgba(255,214,64,0.28), inset 0 0 6px rgba(255,214,64,0.1);
 }
+
+/* ─── 自定义下拉面板 ─── 原生弹出（datalist/select）CSS 一行都改不了，白底系统菜单
+   和这套暗色 UI 永远割裂；四处下拉共用这一份面板，面/边/辉光全抄弹窗配方。 */
+.combo-panel {
+  position: fixed; z-index: 10000; display: none;
+  max-height: 264px; overflow-y: auto;
+  padding: 4px;
+  background: linear-gradient(170deg, rgba(15,23,40,0.98) 0%, rgba(10,16,27,0.97) 100%);
+  border: 1px solid rgba(0,229,255,0.2); border-radius: 8px;
+  box-shadow: 0 0 40px rgba(0,229,255,0.08), 0 0 80px rgba(224,64,251,0.04), 0 12px 32px rgba(0,0,0,0.55);
+  backdrop-filter: blur(6px);
+  scrollbar-width: thin; scrollbar-color: var(--border-glow) transparent;
+}
+.combo-panel.open { display: block; }
+.combo-item {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  padding: 7px 10px; border-radius: 5px; cursor: pointer;
+  color: var(--text); font-size: 0.8rem; font-family: var(--font);
+}
+.combo-item .combo-val {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.combo-item .combo-hint {
+  color: var(--muted); font-size: 0.66rem; letter-spacing: 0.03em;
+  font-family: var(--font-display); white-space: nowrap;
+}
+.combo-item.hl, .combo-item:hover {
+  background: rgba(0,229,255,0.09); color: var(--cyan);
+  box-shadow: inset 2px 0 0 var(--cyan);
+}
+.combo-item.hl .combo-hint, .combo-item:hover .combo-hint { color: var(--text2); }
+.combo-empty { padding: 8px 10px; color: var(--muted); font-size: 0.72rem; }
 
 /* ─── TOAST ─── */
 #toast {
@@ -671,20 +703,7 @@ tr:hover td { background: rgba(255,255,255,0.01); }
   border-color: var(--cyan);
   box-shadow: 0 0 20px rgba(0,229,255,0.25), 0 0 40px rgba(0,229,255,0.06), inset 0 0 6px rgba(0,229,255,0.1);
 }
-.modal select {
-  width: 100%; padding: 10px 14px;
-  border-radius: 6px;
-  border: 1px solid var(--border); background: var(--bg);
-  color: var(--text); font-size: 0.84rem; outline: none;
-  font-family: var(--font); transition: all 0.25s; cursor: pointer;
-}
-.modal select:focus {
-  border-color: var(--cyan);
-  box-shadow: 0 0 20px rgba(0,229,255,0.25), 0 0 40px rgba(0,229,255,0.06), inset 0 0 6px rgba(0,229,255,0.1);
-}
-.modal select option {
-  background: var(--surface); color: var(--text);
-}
+.modal input[readonly] { cursor: pointer; }
 #priceHint {
   margin-top: 6px; padding: 5px 10px;
   border-radius: 4px; font-size: 0.66rem;
@@ -1047,24 +1066,24 @@ tr:hover td { background: rgba(255,255,255,0.01); }
   <div class="footer" id="footer"></div>
 </div>
 
+<!-- COMBO PANEL（品牌/型号/模板/行内品类四处共用这一份，全局唯一） -->
+<div class="combo-panel" id="comboPanel" role="listbox"></div>
+
 <!-- MODAL -->
 <div class="modal-overlay" id="modal">
   <div class="modal">
     <h2 id="modalTitle">新增记录</h2>
     <div class="field" id="templateField">
       <label>模板录入</label>
-      <select id="fTemplate">
-        <option value="">-- 手动输入 --</option>
-      </select>
+      <input id="fTemplate" readonly placeholder="-- 手动输入 --" autocomplete="off">
     </div>
     <div class="field">
       <label>品牌</label>
-      <input id="fBrand" list="brandOptions" placeholder="微星 / 华硕 / 技嘉..." autocomplete="off">
-      <datalist id="brandOptions"></datalist>
+      <input id="fBrand" placeholder="微星 / 华硕 / 技嘉..." autocomplete="off">
     </div>
     <div class="field">
       <label>型号</label>
-      <input id="fModel" placeholder="B650m gaming wifi...">
+      <input id="fModel" placeholder="B650m gaming wifi..." autocomplete="off">
     </div>
     <div class="field" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div>
@@ -1351,15 +1370,215 @@ function brandOptions(brands, usedNames) {
   return out;
 }
 
-function renderBrandOptions() {
-  const dl = document.getElementById('brandOptions');
-  if (!dl) return;
+// ─── 自定义下拉：品牌 / 型号 / 模板 / 行内品类四处共用一份面板 ───
+// 原生弹出（select 菜单、datalist）由浏览器绘制，CSS 一行都改不了，白底系统菜单
+// 和这套暗色 UI 永远割裂 —— 所以四处全部改挂到这个自画面板上。
+const COMBO = { anchor: null, cands: [], shown: [], idx: -1, onPick: null, picking: false };
+
+function comboEl() { return document.getElementById('comboPanel'); }
+
+// 型号候选 = 知识库配件（右侧提示品牌）+ 账本里用过但没入库的组合。
+// 去重键含品牌：同一个型号名挂在两个品牌下要各占一行，选错品牌就是记错货；
+// 但账本里的 'MSI' 要经 resolve 折回 '微星' 再比，否则同一块板子又拆成两种写法，
+// 正是统计分叉的老毛病。
+function modelOptions(parts, used, resolve) {
+  const seen = {};
+  const out = [];
+  (parts || []).forEach(p => {
+    const name = String((p && p.name) || '').trim();
+    if (!name) return;
+    const brand = String((p && p.brand) || '').trim();
+    seen[partKey(brand, name)] = 1;
+    ((p && p.aliases) || []).forEach(a => { seen[partKey(brand, a)] = 1; });
+    out.push({ value: name, hint: brand });
+  });
+  (used || []).forEach(u => {
+    const model = String((u && u.model) || '').trim();
+    if (!model) return;
+    const raw = String((u && u.brand) || '').trim();
+    const brand = resolve ? resolve(raw) : raw;
+    const key = partKey(brand, model);
+    if (seen[key]) return;
+    seen[key] = 1;
+    out.push({ value: model, hint: brand });
+  });
+  return out;
+}
+
+function filterCombo(cands, query) {
+  const q = normKey(query);
+  if (!q) return (cands || []).slice();
+  return (cands || []).filter(c => {
+    const v = normKey(c && c.value);
+    const h = normKey(c && c.hint);
+    return (v && v.indexOf(q) >= 0) || (h && h.indexOf(q) >= 0);
+  });
+}
+
+function renderCombo(query) {
+  const el = comboEl();
+  COMBO.shown = filterCombo(COMBO.cands, query);
+  COMBO.idx = -1;
+  if (!COMBO.shown.length) {
+    el.innerHTML = '<div class="combo-empty">无匹配</div>';
+    return;
+  }
+  el.innerHTML = COMBO.shown.map((c, i) =>
+    `<div class="combo-item" data-i="${i}" role="option">` +
+    `<span class="combo-val">${esc(c.text != null ? c.text : c.value)}</span>` +
+    (c.hint ? `<span class="combo-hint">${esc(c.hint)}</span>` : '') +
+    `</div>`).join('');
+}
+
+function positionCombo() {
+  const el = comboEl();
+  if (!el || !COMBO.anchor) return;
+  const r = COMBO.anchor.getBoundingClientRect();
+  const w = Math.max(r.width, 160);
+  el.style.width = w + 'px';
+  el.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
+  const h = el.offsetHeight;
+  let top = r.bottom + 4;
+  // 下面放不下就翻到上面去：弹窗贴着屏幕下半时，往下弹只会弹出视口外。
+  if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 4);
+  el.style.top = top + 'px';
+}
+
+function openCombo(anchor, cands, query, onPick) {
+  const el = comboEl();
+  if (!el || !anchor) return;
+  COMBO.anchor = anchor;
+  COMBO.cands = cands || [];
+  COMBO.onPick = onPick || null;
+  renderCombo(query);
+  el.classList.add('open');
+  positionCombo();
+}
+
+function closeCombo() {
+  const el = comboEl();
+  if (el) el.classList.remove('open');
+  COMBO.anchor = null;
+  COMBO.shown = [];
+  COMBO.idx = -1;
+  COMBO.onPick = null;
+}
+
+function moveCombo(d) {
+  const el = comboEl();
+  if (!el) return;
+  const rows = el.querySelectorAll('.combo-item');
+  if (!rows.length) return;
+  let i = COMBO.idx + d;
+  if (i < 0) i = rows.length - 1;
+  if (i >= rows.length) i = 0;
+  rows.forEach(r => r.classList.remove('hl'));
+  COMBO.idx = i;
+  rows[i].classList.add('hl');
+  rows[i].scrollIntoView({ block: 'nearest' });
+}
+
+function pickCombo(i) {
+  const c = COMBO.shown[i];
+  const onPick = COMBO.onPick;
+  closeCombo();
+  if (c && onPick) onPick(c);
+}
+
+// noFilter：候选是封闭集合（模板），输入框里显示的是选中项的人话而不是查询词，
+// 拿它去过滤会把整张表筛空。
+function attachCombo(input, getCands, onPick, noFilter) {
+  if (!input) return;
+  const refresh = () => {
+    if (COMBO.picking) return;
+    openCombo(input, getCands() || [], noFilter ? '' : input.value, onPick);
+  };
+  input.addEventListener('focus', refresh);
+  input.addEventListener('input', refresh);
+  // Esc 关掉之后再点同一个格子不会再触发 focus，靠 click 才开得回来。
+  input.addEventListener('click', () => { if (COMBO.anchor !== input) refresh(); });
+  input.addEventListener('blur', () => { if (COMBO.anchor === input) closeCombo(); });
+}
+
+function openCatCombo(btn, origIdx) {
+  const cats = CATALOG.categories || [];
+  openCombo(btn, cats.map(c => ({ value: c.key, text: c.name })), '', cat => saveCatPatch(origIdx, cat.value));
+}
+
+comboEl().addEventListener('mousedown', e => {
+  // 拦掉默认行为，否则焦点先离开输入框、blur 把面板关了，这次点击就落空。
+  e.preventDefault();
+  const row = e.target.closest('.combo-item');
+  if (row) pickCombo(Number(row.dataset.i));
+});
+
+document.addEventListener('mousedown', e => {
+  if (!COMBO.anchor) return;
+  if (e.target === COMBO.anchor || e.target.closest('#comboPanel')) return;
+  closeCombo();
+});
+
+// 表格一滚动，fixed 定位的面板就悬在错的地方，直接关掉最省事。
+document.addEventListener('scroll', () => { if (COMBO.anchor) closeCombo(); }, true);
+
+// ─── COMBO KEYBOARD ───
+// 必须注册在弹窗那个 document keydown（回车=提交）之前：同目标监听按注册顺序跑，
+// 面板开着时 ↑↓/回车要先在这里被吃掉，否则一回车就把还没填完的表单提交了。
+document.addEventListener('keydown', e => {
+  if (!COMBO.anchor) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    moveCombo(e.key === 'ArrowDown' ? 1 : -1);
+  } else if (e.key === 'Enter') {
+    // 没有高亮项就当成普通回车：关掉面板，放行提交。
+    if (COMBO.idx < 0) { closeCombo(); return; }
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    pickCombo(COMBO.idx);
+  } else if (e.key === 'Escape') {
+    e.stopImmediatePropagation();
+    closeCombo();
+  }
+});
+
+// 选中后走一遍 input 事件，好复用既有的「改了品牌/型号就清掉模板、重查参考价」逻辑；
+// picking 期间 attachCombo 自己的 input 监听要让路，否则一选中面板又被重新打开。
+function comboPickInto(id, value) {
+  const el = document.getElementById(id);
+  COMBO.picking = true;
+  el.value = value;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  COMBO.picking = false;
+}
+
+attachCombo(document.getElementById('fBrand'), () => {
   const used = {};
   items.forEach(i => { if (i.brand) used[i.brand] = 1; });
-  const opts = brandOptions((CATALOG && CATALOG.brands) || [], Object.keys(used));
-  dl.innerHTML = opts.map(o =>
-    `<option value="${esc(o.value)}"${o.label ? ` label="${esc(o.label)}"` : ''}></option>`).join('');
-}
+  return brandOptions((CATALOG && CATALOG.brands) || [], Object.keys(used))
+    .map(o => ({ value: o.value, hint: o.label }));
+}, c => comboPickInto('fBrand', c.value));
+
+attachCombo(document.getElementById('fModel'), () => modelOptions(
+  (CATALOG && CATALOG.parts) || [],
+  items.map(i => ({ brand: i.brand, model: i.model })),
+  resolveBrand
+), c => comboPickInto('fModel', c.value));
+
+attachCombo(document.getElementById('fTemplate'),
+  () => (window._tplCache || []).map(t => ({
+    value: t.brand + '|||' + t.model,
+    text: `${t.model} · ${t.brand} (${t.count}笔)`,
+  })),
+  c => {
+    const [brand, model] = c.value.split('|||');
+    document.getElementById('fBrand').value = brand;
+    document.getElementById('fModel').value = model;
+    document.getElementById('fTemplate').value = c.text;
+    document.getElementById('fCost').focus();
+    fetchPriceHint(brand, model);
+  },
+  true);
 
 function parseItems(raw) {
   raw.forEach((r, i) => { r._oi = i; });
@@ -1782,19 +2001,19 @@ function splitActionBtn(item) {
 }
 
 // 行内品类下拉。8 个选项一律取自知识库品类表（CATALOG.categories），JS 这边不另抄一份清单，
-// 否则后端加一类品类就得记着来改这里。选中项是 effectiveCat：记录自己没有可信品类时，
-// 停在知识库判出来的那一格上，给人复核的起点而不是空白。
+// 否则后端加一类品类就得记着来改这里。按钮上写的是当前 effectiveCat 的中文名：
+// 记录自己没有可信品类时，停在知识库判出来的那一格上，给人复核的起点而不是空白。
 // 知识库整个没加载上时（离线/500）选项表是空的 —— 那种情况给个能点但写不出值的空下拉
 // 比给个占位符更坏，所以降级成一根破折号，与图片格的空态同款。
 function catSelect(i) {
   const cats = CATALOG.categories || [];
   if (!cats.length) return '<span style="color:var(--muted)">—</span>';
   const cur = effectiveCat(i);
-  const opts = cats.map(c => `<option value="${esc(c.key)}"${c.key === cur ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
+  const curName = (cats.find(c => c.key === cur) || {}).name || cur;
   // 未判定的行整枚转金色，与工具栏那个金色 chip 同一套语言。
   const tone = pendingCat(i) ? ' pending' : '';
-  // onclick 也要挡一下：不挡的话点这张下拉会先触发所在行的点击（展开/编辑）。
-  return `<select class="cat-select${tone}" title="改判品类" aria-label="品类" onclick="event.stopPropagation()" onchange="event.stopPropagation(); saveCatPatch(${i.origIdx}, this.value)">${opts}</select>`;
+  // onclick 也要挡一下：不挡的话点这枚按钮会先触发所在行的点击（展开/编辑）。
+  return `<button type="button" class="cat-select${tone}" title="改判品类" aria-label="品类" onclick="event.stopPropagation(); openCatCombo(this, ${i.origIdx})">${esc(curName)}</button>`;
 }
 
 function renderModels() {
@@ -2000,7 +2219,6 @@ function renderChipsets() {
 }
 
 function render() {
-  renderBrandOptions();
   updateStats();
   if (currentView === 'brands') renderBrands();
   else if (currentView === 'models') renderModels();
@@ -2079,7 +2297,7 @@ async function openAddModal() {
   window._pendingImageRemovals = [];
   document.getElementById('priceHint').style.display = 'none';
   document.getElementById('templateField').style.display = '';
-  // populate template dropdown
+  // 模板列表拉一次缓存住；候选行由共享面板从这个缓存现取，不再往 DOM 里塞 option。
   const sel = document.getElementById('fTemplate');
   sel.value = '';
   if (!window._tplCache) {
@@ -2087,10 +2305,6 @@ async function openAddModal() {
       const res = await fetch('/api/templates');
       window._tplCache = await res.json();
     } catch (e) { window._tplCache = []; }
-  }
-  sel.innerHTML = '<option value="">-- 手动输入 --</option>';
-  for (const t of window._tplCache) {
-    sel.innerHTML += `<option value="${t.brand}|||${t.model}">${t.model} · ${t.brand} (${t.count}笔)</option>`;
   }
   // 上面 await 模板列表期间拆单弹窗可能已经开了：再判一次，别把同一把锁发给两份表单。
   if (openFormModal()) return;
@@ -2402,16 +2616,6 @@ document.addEventListener('keydown', e => {
 });
 
 // ─── TEMPLATE & PRICE HINT ──────────────
-document.getElementById('fTemplate').addEventListener('change', () => {
-  const val = document.getElementById('fTemplate').value;
-  if (!val) return;
-  const [brand, model] = val.split('|||');
-  document.getElementById('fBrand').value = brand;
-  document.getElementById('fModel').value = model;
-  document.getElementById('fCost').focus();
-  fetchPriceHint(brand, model);
-});
-
 document.getElementById('fBrand').addEventListener('input', () => {
   document.getElementById('fTemplate').value = '';
 });
