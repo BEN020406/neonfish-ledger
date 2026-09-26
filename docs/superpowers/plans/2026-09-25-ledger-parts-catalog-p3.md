@@ -1690,4 +1690,60 @@ Task 7 至此全部做完；剩下的只有 Task 8（前端品类列 + 「品类
 留在夹具库里 —— 红成 `board 164/166`、`unknown 5/2`。**"按本次真会执行的合并"
 这条同源规则不只在生成器里要守，测试夹具拼库时同样要守。**
 
-P3 剩下：Task 8（前端品类列 + 「品类待确认 N」）、Task 9（重启验证）。
+### 12. Task 8 已执行（2026-09-26，提交 `50b2d9a`）
+
+改了 `index.html`（+149）与 `tests/test_ledger_api.py`（+186）。全量测试 256 → **263 passed**
+（新增 7 条：`test_parse_items_carries_the_record_cat`、
+`test_category_pending_chip_exists_and_is_not_the_always_false_shape`、
+`test_pending_cat_behaviour_on_the_migrated_ledger_shape`、
+`test_category_chip_counter_and_active_state_are_wired_into_update_stats`、
+`test_the_two_inline_filters_have_separate_state_and_are_mutually_exclusive`、
+`test_inline_category_select_is_rendered_under_its_own_header_column`、
+`test_inline_category_write_reuses_the_existing_inline_put_channel`）。
+落地面：品类列（表头 `mkTh('cat','品类')`，排在利润率之后、图片之前）、行内 `<select>` 改判、
+`#catChip`「品类待确认 N」、`pendingCat` / `effectiveCat` / `saveCatPatch` / `catSelect`。
+
+正文这里有三处按原样写会出事，执行时都改了：
+
+1. **`pendingCat` 的判定必假**。正文第一步是 `if (i.cat) return false;` —— 但 Task 7 Step 6
+   已经给 255 条记录都补了 `cat`，`'unknown'` 也是 truthy 串，于是 chip 永远显示 0、
+   永远 `hidden`，整个功能是死代码。正确口径必须把 `unknown` 也算待确认：
+   `if (i.cat && i.cat !== UNKNOWN_CAT) return false;`（`index.html:1297`）。
+   这条改动本身有测试钉住：`test_category_pending_chip_exists_and_is_not_the_always_false_shape`
+   显式断言「不许出现只判空串的旧写法」，否则静态契约抓不到死逻辑。
+2. **正文 Step 2 指向 `tests/test_frontend_contract.py` —— 这个文件不存在**。本仓库所有
+   「前端字符串契约」用例（品牌图标必须齐全、409 契约、OCR 键名）都住在
+   `tests/test_ledger_api.py`，Task 8 的契约用例跟着落在那里，不另起文件。
+3. **正文让 `saveCatPatch` 抄 `saveRowPatch` —— 这个函数也不存在**。行内单次写的真锚点是
+   `deleteItem`：无参 `writeHeaders()` 自己回落到 `_ledgerStamp`（最新一次读到的版本），
+   **不是**弹窗那套 `_formStamp`。行内改品类没有"正在填的表单"，锁一个弹窗版本反而会让
+   它跟别的窗口抢自己刚读到的版本。
+
+交互上有两处正文没写、但不定下来就会互相咬：品类筛选与挂单筛选**互斥**
+（`toggleCatPending` / `togglePending` 各自点亮时关掉对方，`index.html:1623-1636`），
+两个 chip 同时高亮的结果没人能解释；两个 chip 都只在型号明细视图成立，所以切走时一起复位
+（`:1981`）。知识库还没载入时 `catSelect` 降级成一个灰色 `—`，不渲染空的 `<select>` ——
+选项全部取 `CATALOG.categories`，前端不自己抄一份品类清单。`onclick` 与 `onchange` 都
+`stopPropagation`，否则选品类会顺手把编辑弹窗打开。
+
+**端到端验证方式换了**：本环境 `take_screenshot` 报 `NATIVE_BROWSER_VIEWPORT_UNAVAILABLE`，
+所以按正文 Step 5 的兜底口径改用 `evaluate_script` 取 DOM 与 computed style 断言。
+在隔离夹具实例（`tests/ui_fixture_server.py`，端口 8793，4 条造数：一条 `cat=board`、
+一条 `cat=unknown`、一条**完全没有 cat 键**、一条 `cat=cpu`）上实测到：
+chip 文案 `品类待确认 2` → 点开精确剩那 2 行（值都是 `unknown`）→ 再点回 4 行；
+表头顺序含品类；待确认行是金色（`rgb(255,215,64)` / `rgba(255,214,64,.4)`）、普通行是
+`rgb(136,153,187)`；select 21.1px 高、落在 70px 行内不撑高；缺 `cat` 的那条按知识库兜到 `board`。
+验证全程只读（没发过 PUT），结束后夹具实例已停、临时文件已删，
+`data.json`（`06b0bfe5…`）与 `catalog.json`（`c6a2114d…`）sha 未变。
+
+**真账本上 chip 会是 1，不是 2**：`parseItems` 有一句 `if (!b && !m) return false;`，
+下标 166 那条 `brand="" model=""` 的记录在任何列表里都不存在（这也是 #53 的根因）。
+Task 8 没动它 —— 要让它现身就得改过滤，那等于推翻 #12 定下来的 index 语义，属独立决策。
+
+一条继承来的小瑕疵（没修，先记着）：`catChip.hidden = catPending === 0`，所以「筛着筛选、
+最后一条刚好被改判完」时会进入"筛选生效但开关看不见"的状态，得切一次页才复位。
+这个形状 `pendingChip` 一直就是这样，不是 Task 8 引入的，要改就两个一起改。
+
+P3 剩下：Task 9（验证）。已确认 `send_html` 每次请求重读 `index.html`
+（`app_standalone.py:1068`），`load_catalog` / `load_data` 也不缓存，
+所以 **8765 那个进程不用重启，账本窗口刷新一下就能看到新列和新 chip**。
