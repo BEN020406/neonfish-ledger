@@ -1767,3 +1767,60 @@ def test_inline_category_write_reuses_the_existing_inline_put_channel():
     assert "_ledgerBusy" in body and "LEDGER_BUSY_MSG" in body, "少了行内写共用的收尾窗口守卫"
     assert "await fetchItems()" in body and "window._tplCache = null" in body, \
         "写完没重拉列表/没清模板缓存，与行内删除的既有形状不一致"
+
+
+def test_window_has_a_reload_button_that_reloads_the_document():
+    """窗口里要有一个真的重载文档的按钮，不是「重新拉一次数据」。
+
+    后端 send_html 每次请求都重读 index.html，所以前端改了只要重载就能看见；
+    可 pywebview 那个窗口没有菜单可点，之前只能靠人记得按 F5。
+    写成 fetchItems()/syncFromDisk() 那种「看着像刷新」的东西不算 —— 它只换数据，
+    拿不到新的 HTML/JS，改了前端照样是旧页面。
+    """
+    src = _index_js()
+    assert 'onclick="reloadPage()"' in src, "重载没挂到任何按钮上，函数就是死代码"
+    header = "function reloadPage() {"
+    assert header in src, "按钮点得到但函数没定义，点了只会报 ReferenceError"
+    body = _top_level_fn(src, header)
+    assert "location.reload()" in body, \
+        "reloadPage 没有重载文档；只刷数据拿不到改过的 index.html"
+    assert "openFormModal()" in body, \
+        "表单开着时不拦一下，重载会把已填未存的内容静默丢掉"
+
+
+def _reload_page_effect(src, modal_open):
+    """在 node 里真跑一遍 src 里的 reloadPage，返回 (重载次数, 提示列表)。
+
+    参数收的是源码文本而不是直接读文件：同一套判定要能喂进改坏的源码，
+    才能证明它不是恒绿的。
+    """
+    js = (
+        _top_level_fn(src, "function reloadPage() {") + "\n"
+        "let reloaded = 0; const toasts = [];\n"
+        "const location = { reload: () => { reloaded++; } };\n"
+        "function showToast(msg, kind) { toasts.push([msg, kind]); }\n"
+        "function openFormModal() { return %s; }\n"
+        "reloadPage();\n"
+        "process.stdout.write(JSON.stringify({ reloaded, toasts }));\n"
+        % ("{ id: 'modal' }" if modal_open else "null")
+    )
+    out = _run_node(js)
+    return out["reloaded"], out["toasts"]
+
+
+def test_reload_page_reloads_only_when_no_form_is_open():
+    """按下去要真的重载文档；表单开着时按下不能重载，只给一句提示。
+
+    上面那条只查字符串在不在，这条查行为：写成 fetchItems() 的话字符串照样在、
+    行为却是拿不到新前端；少了互斥守卫，重载会把填了一半的表单静默清空。
+    """
+    src = _index_js()
+
+    reloaded, toasts = _reload_page_effect(src, modal_open=False)
+    assert (reloaded, toasts) == (1, []), \
+        "没有表单时应当直接重载且不弹提示，实到 重载 %s 次、提示 %s" % (reloaded, toasts)
+
+    reloaded, toasts = _reload_page_effect(src, modal_open=True)
+    assert reloaded == 0, "表单开着还重载，填了一半的内容直接没了"
+    assert len(toasts) == 1 and toasts[0][1] == "err", \
+        "拦下来了却不吭声，用户只会以为这个按钮坏了"

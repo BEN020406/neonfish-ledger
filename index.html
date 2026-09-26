@@ -1012,6 +1012,7 @@ tr:hover td { background: rgba(255,255,255,0.01); }
       <button class="btn" onclick="importCSV()">导入CSV</button>
       <button class="btn" id="ocrBtn" onclick="ocrFromScreenshot()">OCR识别</button>
       <button class="btn accent" onclick="toggleSmartEntry()">AI 录入</button>
+      <button class="btn" id="reloadBtn" onclick="reloadPage()" title="重新加载整个页面（改了前端代码之后要用它才拿得到新版本）">重载</button>
       <input type="file" id="csvFileInput" accept=".csv" style="display:none" onchange="handleCSVUpload(event)">
       <input type="file" id="ocrFileInput" accept="image/*" style="display:none" onchange="handleOCRUpload(event)">
     </div>
@@ -1633,6 +1634,16 @@ function toggleCatPending() {
   if (catPendingOnly) pendingOnly = false;
   if (catPendingOnly) focusModelsView();
   render();
+}
+
+// 后端每次请求都重读 index.html，所以改了前端代码只有重载文档才拿得到新版本；
+// 现有的实时同步只重拉 data.json，前端代码是老的。
+function reloadPage() {
+  if (openFormModal()) {
+    showToast('有表单没关，先关掉或提交再重载，否则已填的内容会丢', 'err');
+    return;
+  }
+  location.reload();
 }
 
 // ─── BRAND ICONS ──────────────────────────
