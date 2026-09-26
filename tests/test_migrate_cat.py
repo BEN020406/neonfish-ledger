@@ -54,8 +54,11 @@ def catalog_with(parts):
 
 @pytest.fixture
 def patched_catalog(tmp_path, monkeypatch):
-    """播种态快照的副本 + 真补丁里 high 那部分（3 条 medium 他还没批）。
+    """播种态快照的副本 + 完整真补丁（含已批准的 3 条 medium）。
 
+    必须与线上库同源：part_cats 是按「这次真会执行的合并」生成的，medium 一批准
+    它那三个 fold 就不再有条目，夹具若还只挑 high 拼库，那三个名字会以
+    cat=unknown 留在库里，报告分布就少了 3 条 part 层判定。
     两个 CATALOG_FILE 一起 monkeypatch：apply_patch 最后走 app_standalone.save_catalog，
     少了这一手，校验器一旦退回「读副本写线上」就会真改坏知识库。
     """
@@ -65,13 +68,7 @@ def patched_catalog(tmp_path, monkeypatch):
     monkeypatch.setattr(ap, 'CATALOG_FILE', str(path))
     monkeypatch.setattr(m, 'CATALOG_FILE', str(path))
     real = json.load(open(PATCH_FILE, encoding='utf-8'))
-    ops = {
-        'brand_renames': real['brand_renames'],
-        'brand_aliases': real['brand_aliases'],
-        'part_merges': [e for e in real['part_merges'] if e['confidence'] == 'high'],
-        'part_cats': real['part_cats'],
-    }
-    ap.apply_patch(ops, catalog_file=str(path))
+    ap.apply_patch(real, allow_medium=True, catalog_file=str(path))
     return str(path)
 
 

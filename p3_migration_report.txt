@@ -1,5 +1,5 @@
 账本: G:\claude code\data.json (255 条)
-知识库: G:\claude code\catalog.json brands=22 parts=113 其中 cat 缺失或 unknown 的 part=0
+知识库: G:\claude code\catalog.json brands=22 parts=110 其中 cat 缺失或 unknown 的 part=0
 品类分布: {'board': 166, 'cooler': 25, 'ram': 25, 'ssd': 13, 'cpu': 12, 'bundle': 10, 'gpu': 2, 'unknown': 2}
 来源分布: {'part': 253, 'fallback': 2}
 
@@ -238,7 +238,7 @@
 231   微星       B650m迫击炮wifi                             board    微星/B650m迫击炮wifi
 232   华硕       B650m-k                                  board    华硕/B650m-k
 233   微星       B650m迫击炮wifi                             board    微星/B650m迫击炮wifi
-234   微星       B650 gaming wifi                         board    微星/B650 gaming wifi
+234   微星       B650 gaming wifi                         board    微星/B650mgaming wifi
 235   铭瑄       B760m 终结者D4 wifi                         board    铭瑄/B760m 终结者D4 wifi
 236   铭瑄       B760m终结者D4 wifi                          board    铭瑄/B760m 终结者D4 wifi
 237   微星       b850mpower                               board    微星/b850mpower
@@ -249,14 +249,14 @@
 242   微星       PRO H610M-E DDR4主板                       board    微星/H610m-E
 243            CPU针接触不良返场维修一次                           unknown  fallback
 244   七彩虹      BATTLE-AX B760M-G WIFI                   board    七彩虹/BATTLE-AX B760M-G WIFI
-245   微星       mag b650m mortar 针脚坏                     board    微星/mag b650m mortar 针脚坏
+245   微星       mag b650m mortar 针脚坏                     board    微星/B650m迫击炮wifi
 246   铭瑄       B760M-D4终结者主板                            board    铭瑄/B760M 终结者D4
 247   华硕       PRIME B650M-K主板                          board    华硕/B650m-k
 248   微星       b650m gamingplus Wi-Fi主板 时好时             board    微星/B650mgaming plus wifi
 249   微星       PRO H610M-E DDR4主板                       board    微星/H610m-E
 250   英特尔      I512490F盒装搭配微星PRO H610M                  bundle   英特尔/I512490F盒装搭配微星PRO H610M
 251   微星       610h 12400f 板u套装                         bundle   微星/610h 12400f 板u套装
-252   微星       360水冷                                    cooler   微星/360水冷
+252   微星       360水冷                                    cooler   微星/liquid R360
 253   精粤       b760M 主板 安装cpu的时候掉下去了针脚砸坏了               board    精粤/b760M 主板 安装cpu的时候掉下去了针脚砸坏了
 254   微星       h610 坏板                                  board    微星/h610 坏板
 
@@ -264,4 +264,4 @@
   166   brand='' model='' 来源=fallback
   243   brand='' model='CPU针接触不良返场维修一次' 来源=fallback
 
-（dry-run）data.json sha fd50d857c17f9f0f -> fd50d857c17f9f0f
+（dry-run）data.json sha 06b0bfe5737ca655 -> 06b0bfe5737ca655

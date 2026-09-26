@@ -364,20 +364,17 @@ KNOWN_UNRESOLVABLE_MODELS = {"", "CPU针接触不良返场维修一次"}
 
 @pytest.fixture
 def patched_real_catalog(real_brand_sandbox):
-    """真 catalog.json + 真补丁（只含 high 合并）。
+    """播种态快照 + 完整真补丁（含已批准的 3 条 medium），与线上库同源。
 
+    part_cats 是按「这次真会执行的合并」生成的，medium 一批准它那三个 fold 就
+    不再有条目；夹具若还只挑 high 拼库，那三个名字会以 cat=unknown 留在库里，
+    §3 那份记录级分布就会少 3 条 part 层判定。
     必须走 real_brand_sandbox：apply_patch 最后调的是 app_standalone.save_catalog，
     它读那个模块自己的 CATALOG_FILE。自己拷一份临时文件而不 monkeypatch，
     这条用例就会把补丁真写进线上 catalog.json。
     """
     real = json.load(open(os.path.join(ROOT, "p3_catalog_patch.json"), encoding="utf-8"))
-    ops = {
-        "brand_renames": real["brand_renames"],
-        "brand_aliases": real["brand_aliases"],
-        "part_merges": [e for e in real["part_merges"] if e["confidence"] == "high"],
-        "part_cats": real["part_cats"],
-    }
-    return ap.apply_patch(ops, catalog_file=real_brand_sandbox)
+    return ap.apply_patch(real, allow_medium=True, catalog_file=real_brand_sandbox)
 
 
 def classify_all(patched_real_catalog):
