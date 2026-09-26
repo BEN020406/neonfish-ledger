@@ -1824,3 +1824,28 @@ def test_reload_page_reloads_only_when_no_form_is_open():
     assert reloaded == 0, "表单开着还重载，填了一半的内容直接没了"
     assert len(toasts) == 1 and toasts[0][1] == "err", \
         "拦下来了却不吭声，用户只会以为这个按钮坏了"
+
+
+def _css_rule(src, selector):
+    """取一条 CSS 规则的大括号内容，用于断言声明确实写在样式表里。"""
+    start = src.index(selector + " {")
+    return src[start + len(selector) + 2:src.index("}", start)]
+
+
+def test_toolbar_actions_group_wraps_so_the_last_button_stays_reachable():
+    """工具栏右侧按钮组必须能换行，不能靠溢出把最右边的按钮推出局。
+
+    实测（真浏览器 831px 视口）：#reloadBtn 右边界 860 > 831、document.scrollWidth 860，
+    按钮在窗口里根本点不到 —— 而它唯一的用途就是「改完前端之后让人够得着」。
+    同一行里的「AI 录入」早就被裁掉了，只是没人发现。
+    """
+    src = _index_js()
+    start = src.index('<div class="toolbar">')
+    block = src[start:src.index("<!-- SMART ENTRY PANEL -->", start)]
+    assert 'class="toolbar-actions"' in block, \
+        "右侧按钮组没有类名，宽度不够时无从施加约束"
+    rule = _css_rule(src, ".toolbar-actions")
+    assert "flex-wrap: wrap" in rule, \
+        "不换行的话窗口一窄，最右边的按钮就被挤出视口，点都点不到"
+    assert "justify-content: flex-end" in rule, \
+        "换行后不右对齐，掉下去的那半行会孤零零贴在左边"

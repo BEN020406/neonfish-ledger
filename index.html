@@ -348,6 +348,12 @@ hr.divider {
   display: flex; justify-content: space-between; align-items: center;
   flex-wrap: wrap; gap: 12px; margin-bottom: 16px;
 }
+/* 不换行时窗口一窄就把最右边的按钮挤出视口（实测 831px 视口里 #reloadBtn 右边界 860），
+   掉下去的那半行必须右对齐，否则会孤零零贴在左边。 */
+.toolbar-actions {
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap; justify-content: flex-end;
+}
 .tab-group {
   display: flex; gap: 0;
   background: var(--surface); border: 1px solid var(--border);
@@ -1000,7 +1006,7 @@ tr:hover td { background: rgba(255,255,255,0.01); }
         <button class="tab" data-view="ranking"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> 排行榜</button>
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:10px">
+    <div class="toolbar-actions">
       <button class="filter-chip" id="pendingChip" onclick="togglePending()" hidden>
         待补售价 <b id="pendingCount">0</b>
       </button>
