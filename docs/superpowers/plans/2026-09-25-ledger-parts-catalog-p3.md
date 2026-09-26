@@ -1668,3 +1668,26 @@ blob 里是 LF，clean 过滤后归一化才相等。已验证 `blob.replace(LF�
 
 **§12 P3 验收达成**：255 条都有 cat，unknown 是他认可的两条残行（下标 166、243）。
 Task 7 至此全部做完；剩下的只有 Task 8（前端品类列 + 「品类待确认 N」）和 Task 9（重启验证）。
+
+### 11. 3 条 medium 已批准并落库（2026-09-26）
+
+他批了那 3 组，`p3_catalog_patch.json` 至此**全部落地**，parts 113→110、别名 21→24。
+提交 `86bcba4`。走的是增量：`part_merges` 只含这 3 条、`part_cats` 留空的临时补丁
+`+ --allow-medium`（全量重跑会在 `brand_renames 的 from 不在库里` 上被拦，这是设计如此）。
+`gen_part_cats.py --allow-medium --write` 先把 `part_cats` 从 113 重生成到 110；
+落库前独立比过：只少那 3 个 fold，现存 part 的 cat 一条未变、无新增 part。
+
+**记录级分布不受影响**（board=166 cooler=25 … unknown=2、来源 part=253）——
+三组 fold 与 keep 同品类，正是 `validate()` 那条「合并跨品类就拦」在兜底。
+
+**`p3_catalog_patch.json` 现在是"已消费的历史记录"，不可再整份重跑**：
+它的 `brand_renames` 指向的 凯侠/INTER 已降级为别名。要改判定就新写增量补丁，
+别指望重放这份。测试侧靠 `tests/fixtures/catalog_pre_p3.json` + 完整补丁
+（`allow_medium=True`）复现"从播种态走到现在这份库"，这条路径仍然可重放、可验。
+
+两个夹具这次跟着改了一次（`patched_real_catalog` / `patched_catalog`）：
+它们原本"只挑 high"，medium 批准后若不跟着改，那三个 fold 会以 `cat=unknown`
+留在夹具库里 —— 红成 `board 164/166`、`unknown 5/2`。**"按本次真会执行的合并"
+这条同源规则不只在生成器里要守，测试夹具拼库时同样要守。**
+
+P3 剩下：Task 8（前端品类列 + 「品类待确认 N」）、Task 9（重启验证）。
