@@ -1405,6 +1405,25 @@ function modelOptions(parts, used, resolve) {
   return out;
 }
 
+function templateOptions(records, resolveB, resolveM) {
+  // 只数 2 笔以上的：121 组里约四分之三只出现过一次，全列会把面板变成一屏流水账，
+  // 而一次性配置本来就不配叫模板 —— 品牌框和型号下拉仍然选得到它们。
+  const seen = new Map();
+  (records || []).forEach(r => {
+    const brand = String(resolveB((r || {}).brand) || '').trim();
+    const model = String(resolveM((r || {}).brand, (r || {}).model) || '').trim();
+    if (!brand || !model) return;
+    // 键必须带品牌：同一型号串挂在两个品牌下是两套配置，折一起会少一个入口、笔数还虚高。
+    const key = partKey(brand, model);
+    const hit = seen.get(key);
+    if (hit) hit.count += 1;
+    else seen.set(key, { brand: brand, model: model, count: 1 });
+  });
+  return Array.from(seen.values())
+    .filter(t => t.count > 1)
+    .sort((a, b) => b.count - a.count);
+}
+
 function filterCombo(cands, query) {
   const q = normKey(query);
   if (!q) return (cands || []).slice();
@@ -1566,10 +1585,12 @@ attachCombo(document.getElementById('fModel'), () => modelOptions(
 ), c => comboPickInto('fModel', c.value));
 
 attachCombo(document.getElementById('fTemplate'),
-  () => (window._tplCache || []).map(t => ({
-    value: t.brand + '|||' + t.model,
-    text: `${t.model} · ${t.brand} (${t.count}笔)`,
-  })),
+  () => templateOptions(items, resolveBrand,
+    (b, m) => (resolvePart(b, m) || {}).name || String(m || '').trim())
+    .map(t => ({
+      value: t.brand + '|||' + t.model,
+      text: `${t.model} · ${t.brand} (${t.count}笔)`,
+    })),
   c => {
     const [brand, model] = c.value.split('|||');
     document.getElementById('fBrand').value = brand;
@@ -1757,7 +1778,6 @@ async function saveItem(record) {
     if (res.status === 409) return await handleConflict();
   }
   await fetchItems();
-  window._tplCache = null; // invalidate template cache
   return true;
 }
 
@@ -1766,7 +1786,6 @@ async function deleteItem(idx) {
   const res = await fetch(API + '/' + idx, { method: 'DELETE', headers: ifMatchHeader() });
   if (res.status === 409) return await handleConflict();
   await fetchItems();
-  window._tplCache = null;
   return true;
 }
 
@@ -1790,7 +1809,6 @@ async function saveCatPatch(idx, value) {
     return;
   }
   await fetchItems();
-  window._tplCache = null;
   const name = (CATALOG.categories || []).find(c => c.key === value);
   showToast('品类已改为「' + ((name && name.name) || value) + '」');
   return true;
@@ -2297,17 +2315,7 @@ async function openAddModal() {
   window._pendingImageRemovals = [];
   document.getElementById('priceHint').style.display = 'none';
   document.getElementById('templateField').style.display = '';
-  // 模板列表拉一次缓存住；候选行由共享面板从这个缓存现取，不再往 DOM 里塞 option。
-  const sel = document.getElementById('fTemplate');
-  sel.value = '';
-  if (!window._tplCache) {
-    try {
-      const res = await fetch('/api/templates');
-      window._tplCache = await res.json();
-    } catch (e) { window._tplCache = []; }
-  }
-  // 上面 await 模板列表期间拆单弹窗可能已经开了：再判一次，别把同一把锁发给两份表单。
-  if (openFormModal()) return;
+  document.getElementById('fTemplate').value = '';
   document.getElementById('modal').classList.add('active');
   // 在弹窗已经 active 之后才取锁：此后任何在途 GET 都会被 loadPayload 的弹窗守卫挡下，
   // 不会出现"表单开着、客户端认的版本偷偷变新"。
@@ -2513,7 +2521,6 @@ async function submitSplit() {
   // 先关窗清锁再重读：挂窗口时 loadPayload 的守卫会把这次重读推迟掉。
   closeModal();
   await fetchItems();
-  window._tplCache = null;
   const n = Array.isArray(data.indices) ? data.indices.length : parts.length;
   showToast('已拆成 ' + n + ' 条');
 }

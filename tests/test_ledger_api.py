@@ -1768,8 +1768,7 @@ def test_inline_category_write_reuses_the_existing_inline_put_channel():
     assert re.search(r"body:\s*JSON\.stringify\(\{ cat: value \}\)", body), \
         "请求体不是只带 cat —— 后端逐键赋值，多带的字段会覆盖别人刚写的值"
     assert "_ledgerBusy" in body and "LEDGER_BUSY_MSG" in body, "少了行内写共用的收尾窗口守卫"
-    assert "await fetchItems()" in body and "window._tplCache = null" in body, \
-        "写完没重拉列表/没清模板缓存，与行内删除的既有形状不一致"
+    assert "await fetchItems()" in body, "写完没重拉列表，与行内删除的既有形状不一致"
 
 
 def test_window_has_a_reload_button_that_reloads_the_document():
@@ -1921,6 +1920,63 @@ def test_model_options_merge_catalog_parts_with_models_already_used():
         {"value": "B650M GAMING WIFI", "hint": "技嘉"},
         {"value": "TUF GAMING X570-PLUS", "hint": "华硕"},
     ], "实到 %s" % (got,)
+
+
+def _template_options(records, brand_map, model_map):
+    src = _index_js()
+    parts = [
+        _top_level_fn(src, "function normKey(text) {"),
+        _top_level_fn(src, "function partKey(brand, key) {"),
+        _top_level_fn(src, "function templateOptions(records, resolveB, resolveM) {"),
+        "const RB = %s;\n" % json.dumps(brand_map, ensure_ascii=False),
+        "const RM = %s;\n" % json.dumps(model_map, ensure_ascii=False),
+        "const rb = b => RB[b] || b;\n",
+        "const rm = (b, m) => RM[String(m).toUpperCase()] || m;\n",
+        "process.stdout.write(JSON.stringify(templateOptions(%s, rb, rm)));\n"
+        % json.dumps(records, ensure_ascii=False),
+    ]
+    return _run_node("".join(parts))
+
+
+def test_template_options_lists_only_repeated_configs_sorted_by_count():
+    """模板候选按归一后的「品牌+型号」计数，只留 2 笔以上的，笔数多的排前面。
+
+    真实账本 263 条归一后是 121 组，其中 92 组只有 1 笔；全列会把面板变成一屏流水账，
+    而一次性配置本来就不配叫模板 —— 品牌框和型号下拉仍然选得到它们。
+    聚合键必须带品牌：B650M GAMING WIFI 在微星下 3 笔、技嘉下 1 笔，
+    只按型号计数会顶成 4 笔并把技嘉那条藏起来。
+    记录故意把 H610M-E 排在最前，所以顺序断言考的是真排序而不是插入序。
+    """
+    assert "function templateOptions(" in _index_js(), "templateOptions 还不存在"
+    got = _template_options(
+        [{"brand": "微星", "model": "H610M-E"},
+         {"brand": "微星", "model": "h610m-e"},
+         {"brand": "MSI", "model": "B650M GAMING WIFI"},
+         {"brand": "微星", "model": "B650M GAMING WIFI"},
+         {"brand": "微星", "model": "b650m-gaming-wifi"},
+         {"brand": "技嘉", "model": "B650M GAMING WIFI"},
+         {"brand": "华硕", "model": "TUF GAMING X570-PLUS"},
+         {"brand": "", "model": "B650M GAMING WIFI"},
+         {"brand": "微星", "model": ""}],
+        {"MSI": "微星", "": ""},
+        {"B650M-GAMING-WIFI": "B650M GAMING WIFI", "H610M-E": "H610M-E"},
+    )
+    assert got == [
+        {"brand": "微星", "model": "B650M GAMING WIFI", "count": 3},
+        {"brand": "微星", "model": "H610M-E", "count": 2},
+    ], "实到 %s" % (got,)
+
+
+def test_template_candidates_no_longer_depend_on_the_dead_endpoint():
+    """模板候选改成前端现算后，源码里不许再出现那个死接口和它的手写缓存。
+
+    /api/templates 在 app_standalone.py 里根本没有路由，fetch 到 404 被 catch 静默
+    吞成空数组，于是这个字段从引入那天起永远只显示「无匹配」。现算的数据源就是内存里的
+    items，跟着刷新自动更新，那一圈 window._tplCache = null 手动失效也该一起消失。
+    """
+    src = _index_js()
+    for dead in ("api/templates", "_tplCache"):
+        assert dead not in src, "还留着 %s，模板数据源没换干净" % (dead,)
 
 
 def _filter_combo(cands, query):
