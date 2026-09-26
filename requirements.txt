@@ -1,0 +1,6 @@
+# 抓单 → 填入 → 台账 三件套的实际依赖（按代码 import 逐项核对，非猜测）
+pymysql==1.1.0            # xianyu_scraper / xianyu_review 连 MySQL
+playwright==1.63.0        # 抓单脚本驱动 Chromium 登录闲鱼；装完要再跑 playwright install chromium
+pywebview==6.2.1          # 台账与填入台的原生窗口（Windows 上走 EdgeChromium/WebView2）
+requests==2.33.1          # /api/chat 转发到本地 Ollama，不用该功能可不装
+pillow==12.2.0            # 霓虹鱼启动器画 logo 与发光效果
