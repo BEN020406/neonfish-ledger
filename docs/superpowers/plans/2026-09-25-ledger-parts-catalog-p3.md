@@ -1602,3 +1602,48 @@ python -X utf8 migrate_add_cat.py --catalog "<上面打印的路径>" > p3_migra
 bundle=10 / gpu=2 / unknown=2` 已由 `SPEC3_RECORD_COUNTS` 钉在测试里（两处同源：
 `tests/test_apply_patch.py`、`tests/test_migrate_cat.py`），副本没了测试也会红，不会静默失真。
 Task 7 Step 6 执行完之后，报告改成直接 `python -X utf8 migrate_add_cat.py`（默认读线上库）。
+
+### 9. Task 7 Step 3 已执行（2026-09-26，high-only）
+
+他说「先跑 catalog 补丁」，所以只落了 catalog，`data.json` 仍未动（sha `fd50d857…`）。
+medium 那 3 条他没批，而校验器是整表闸门（一条不过一条不写），所以落盘用的是
+**从 `p3_catalog_patch.json` 剔掉 medium 条目的投影补丁**，走的是脚本本来就有的
+`--patch` 参数：
+
+```bash
+python -X utf8 -c "…proj = dict(real); proj['part_merges'] = [high…] ; dump(tempfile.gettempdir()+'/p3_catalog_patch_high_only.json')"
+python -X utf8 apply_catalog_patch.py --patch \"$TEMP/p3_catalog_patch_high_only.json\" --apply
+# 已写盘：brands=22 parts=113
+```
+
+真补丁文件本身没动，medium 那 3 条仍在里面等裁决。投影是纯函数派生物（只删这 3 项，
+其余三层逐字节相同，执行时已断言过），所以不需要把它当第二份真源保存。
+**批了 medium 之后的正确顺序**：`gen_part_cats.py --allow-medium --write` 重生 `part_cats`
+→ 再跑 `apply_catalog_patch.py --apply --allow-medium`（此时 `brand_renames` 的 `from`
+已不在库里，会被校验挡下 —— 那 3 条得单独写成一个增量补丁跑，不能重跑全量）。
+
+**结果**：`brands 23→22`、`parts 121→113`（7 组 high 合并吃掉 8 个 fold，旧名全进
+`aliases`，21 条品牌别名落地）、`cat` 缺失或 unknown 的 part **0**。用线上库重跑
+`migrate_add_cat.py`，报告 255 行与 dry-run 那份**逐字节一致**（只差抬头的库路径），
+`SPEC3_RECORD_COUNTS` 因此第一次拿到了独立复核。提交 `cf7dd9c`。
+
+**落库后 6 条用例失去前提，两类原因分开修**：
+1. 5 条（`real_brand_sandbox` / `patched_real_catalog` / `patched_catalog` 一串）
+   的前提是「凯侠、INTER 还当规范名」，线上库已不满这个前提 —— 红在起点而不是红在
+   被测行为上。修法是把起点固化成 `tests/fixtures/catalog_pre_p3.json`
+   （内容 = 落库前 `catalog.json`，sha `7f7f0659…` 已核对）。
+   教训：**读真库当起点的用例，一旦被测动作就是改那份真库，它就只能活一次。**
+2. 1 条是真 bug，不是测试问题：`index.html` 的 `BRAND_STYLES` 还留着 `凯侠` 键，
+   归一后 `铠侠` 查不到样式、图标会掉成灰色兜底。键与 `ch` 一起改成 `铠`。
+3. 反过来补一条 `test_production_catalog_already_carries_the_patched_state`：
+   上面那些全打在快照上，`catalog.json` 被 `git checkout` 回退掉它们照样绿。
+   新用例只盯真文件，断言「脏规范名必须消失 + 判类数有下限」。下限写成 `>=100`
+   而不是 113，是为了 medium 批了、新配件继续入库时都不必再动它。
+   已实测它在快照上报红（残留 `['凯侠','INTER']`、判类 `0/121`），不是装饰。
+
+顺带记两个没修的观察：`index.html:2345` 的 `parseOCRText` 里 `knownBrands` 仍含
+`'INTER'`，OCR 导入会把脏写法又写回记录（不是这次改动引入的，`resolve_brand` 能兜住，
+归 P2 录入链路一起处理）；`load_catalog()` 不缓存，所以 8765 那个进程不用重启，
+窗口刷新即可读到新库 —— 已用 `GET /api/catalog` 实测返回 brands=22。
+
+全量测试：**256 passed**。
