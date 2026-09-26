@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>闲鱼订单 · 填入账本</title>
+<style>
+:root{
+  --bg:#0d0d1a;
+  --card:#13132a;
+  --card-hi:#171736;
+  --border:#1e1e3f;
+  --border-hi:#2c2c58;
+  --cyan:#00e5ff;
+  --purple:#a855f7;
+  --magenta:#ec4899;
+  --green:#22c55e;
+  --gold:#fbbf24;
+  --red:#f87171;
+  --text:#e8e8f0;
+  --muted:#8899bb;
+  --dim:#5a6580;
+  --sans:"Microsoft YaHei","PingFang SC","Segoe UI",sans-serif;
+  --mono:"Consolas","JetBrains Mono","Courier New",monospace;
+  --topbar-h:64px;
+  --toolbar-h:58px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+body::before{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(720px 380px at 12% -8%, rgba(0,229,255,.10), transparent 70%),
+    radial-gradient(640px 360px at 92% 4%, rgba(168,85,247,.10), transparent 70%),
+    radial-gradient(760px 420px at 60% 108%, rgba(236,72,153,.07), transparent 70%);
+}
+body::after{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+  background-image:
+    linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+  background-size:44px 44px;
+  mask-image:radial-gradient(ellipse 90% 70% at 50% 0%, #000 40%, transparent 100%);
+}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:#0a0a16}
+::-webkit-scrollbar-thumb{background:#23234a;border-radius:6px;border:2px solid #0a0a16}
+::-webkit-scrollbar-thumb:hover{background:#33336b}
+
+/* ───────────── topbar ───────────── */
+.topbar{
+  position:sticky;top:0;z-index:60;height:var(--topbar-h);
+  display:flex;align-items:center;gap:14px;
+  padding:0 22px;
+  background:rgba(13,13,26,.86);
+  backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border);
+}
+.topbar::after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(0,229,255,.55),rgba(168,85,247,.45),transparent);
+}
+.logo{
+  width:36px;height:36px;flex:0 0 36px;border-radius:11px;
+  display:grid;place-items:center;font-size:19px;
+  background:linear-gradient(145deg,rgba(0,229,255,.20),rgba(168,85,247,.16));
+  border:1px solid rgba(0,229,255,.35);
+  box-shadow:0 0 18px rgba(0,229,255,.18) inset,0 0 14px rgba(0,229,255,.10);
+}
+.topbar h1{font-size:15px;font-weight:700;letter-spacing:.4px}
+.topbar .sub{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:2.4px;
+  color:var(--dim);text-transform:uppercase;margin-top:1px;
+}
+.topbar-spacer{flex:1}
+.btn{
+  font-family:var(--sans);font-size:12.5px;font-weight:600;
+  color:var(--muted);background:var(--card);
+  border:1px solid var(--border);border-radius:9px;
+  padding:7px 13px;cursor:pointer;
+  transition:.16s ease;white-space:nowrap;
+}
+.btn:hover{color:var(--text);border-color:var(--border-hi);background:var(--card-hi)}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.42;cursor:not-allowed;transform:none}
+.btn-cyan{
+  color:#04121a;background:linear-gradient(135deg,var(--cyan),#38bdf8);
+  border-color:transparent;
+  box-shadow:0 0 0 1px rgba(0,229,255,.4),0 6px 20px -6px rgba(0,229,255,.6);
+}
+.btn-cyan:hover{color:#04121a;filter:brightness(1.1);border-color:transparent}
+
+/* ───────────── toolbar ───────────── */
+.toolbar{
+  position:sticky;top:var(--topbar-h);z-index:55;height:var(--toolbar-h);
+  display:flex;align-items:center;gap:10px;
+  padding:0 22px;
+  background:rgba(15,15,32,.82);
+  backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border);
+}
+.search{
+  position:relative;flex:0 1 320px;min-width:170px;
+}
+.search input{
+  width:100%;height:34px;padding:0 12px 0 32px;
+  font-family:var(--sans);font-size:12.5px;color:var(--text);
+  background:#0e0e22;border:1px solid var(--border);border-radius:9px;
+  outline:none;transition:.16s;
+}
+.search input::placeholder{color:#4a5470}
+.search input:focus{border-color:rgba(0,229,255,.55);box-shadow:0 0 0 3px rgba(0,229,255,.09)}
+.search .mag{
+  position:absolute;left:11px;top:50%;transform:translateY(-50%);
+  font-size:12px;color:#4a5470;pointer-events:none;
+}
+.chips{display:flex;gap:6px}
+.chip{
+  font-size:12px;font-weight:600;color:var(--muted);
+  background:#0e0e22;border:1px solid var(--border);
+  border-radius:999px;padding:6px 13px;cursor:pointer;transition:.16s;
+}
+.chip:hover{color:var(--text);border-color:var(--border-hi)}
+.chip.on{
+  color:#04121a;background:linear-gradient(135deg,var(--cyan),#4dd8ff);
+  border-color:transparent;box-shadow:0 0 14px -3px rgba(0,229,255,.6);
+}
+.chip .n{font-family:var(--mono);font-size:10.5px;opacity:.75;margin-left:4px}
+.toolbar-spacer{flex:1}
+
+/* ───────────── layout ───────────── */
+main{position:relative;z-index:1;padding:20px 22px 120px;max-width:1400px;margin:0 auto}
+
+.stats{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;margin-bottom:20px;
+}
+.stat{
+  position:relative;overflow:hidden;
+  background:linear-gradient(160deg,var(--card),#101024);
+  border:1px solid var(--border);border-radius:14px;
+  padding:14px 16px;
+}
+.stat::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--accent,var(--cyan));opacity:.85;
+  box-shadow:0 0 12px var(--accent,var(--cyan));
+}
+.stat .k{font-size:11px;color:var(--dim);letter-spacing:.6px;margin-bottom:6px}
+.stat .v{
+  font-family:var(--mono);font-size:25px;font-weight:700;line-height:1;
+  color:var(--accent,var(--cyan));
+  text-shadow:0 0 16px color-mix(in srgb,var(--accent,var(--cyan)) 45%,transparent);
+}
+.stat .v small{font-size:13px;font-weight:600;opacity:.7;margin-left:2px}
+.stat .d{font-size:10.5px;color:#4a5470;margin-top:6px;font-family:var(--mono)}
+
+/* ───────────── month / day ───────────── */
+.month{margin-bottom:26px}
+.month-head{
+  display:flex;align-items:baseline;gap:10px;
+  padding:0 2px 10px;margin-bottom:12px;
+  border-bottom:1px dashed var(--border);
+}
+.month-head .m{
+  font-size:16px;font-weight:700;letter-spacing:.5px;
+  background:linear-gradient(90deg,var(--cyan),var(--purple));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.month-head .mi{font-family:var(--mono);font-size:11px;color:var(--dim)}
+
+.day{
+  background:linear-gradient(170deg,rgba(19,19,42,.85),rgba(15,15,32,.85));
+  border:1px solid var(--border);border-radius:14px;
+  margin-bottom:12px;overflow:hidden;
+  transition:border-color .18s;
+}
+.day:hover{border-color:var(--border-hi)}
+.day.has-sel{border-color:rgba(0,229,255,.42);box-shadow:0 0 0 1px rgba(0,229,255,.10),0 8px 30px -18px rgba(0,229,255,.7)}
+.day-head{
+  display:flex;align-items:center;gap:12px;
+  padding:11px 15px;cursor:pointer;user-select:none;
+  background:rgba(255,255,255,.014);
+  border-bottom:1px solid transparent;transition:.16s;
+}
+.day:not(.collapsed) .day-head{border-bottom-color:var(--border)}
+.day-head:hover{background:rgba(0,229,255,.045)}
+.day-title{font-size:14px;font-weight:700;letter-spacing:.3px}
+.day-title .wd{color:var(--dim);font-weight:600;font-size:12px;margin-left:6px}
+.day-meta{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.day-meta .sum{color:var(--gold)}
+.day-head .sp{flex:1}
+.day-prog{
+  font-family:var(--mono);font-size:10.5px;color:var(--dim);
+  border:1px solid var(--border);border-radius:999px;padding:2px 9px;
+}
+.day-prog.done{color:var(--green);border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.07)}
+.caret{
+  font-size:10px;color:var(--dim);transition:transform .2s ease;
+  display:inline-block;
+}
+.day.collapsed .caret{transform:rotate(-90deg)}
+.day.collapsed .day-body{display:none}
+.day-body{padding:6px 15px 13px}
+
+/* ───────────── row ───────────── */
+.row{
+  display:grid;grid-template-columns:26px minmax(0,1fr) 116px;
+  gap:14px;align-items:start;
+  padding:13px 10px;border-radius:11px;
+  border:1px solid transparent;
+  transition:.15s;
+}
+.row+.row{border-top:1px solid rgba(30,30,63,.6)}
+.row:hover{background:rgba(255,255,255,.022)}
+.row.sel{
+  background:linear-gradient(100deg,rgba(0,229,255,.075),rgba(168,85,247,.045));
+  border-color:rgba(0,229,255,.28);
+}
+.row.sel+.row{border-top-color:transparent}
+.row.done{opacity:.5}
+.row.done:hover{opacity:.72}
+
+.ck{display:grid;place-items:center;padding-top:2px;cursor:pointer}
+input[type=checkbox]{
+  width:17px;height:17px;accent-color:var(--cyan);cursor:pointer;
+  border-radius:4px;
+}
+input[type=checkbox]:disabled{cursor:not-allowed;opacity:.5}
+
+.row-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px}
+.time{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.badge{
+  font-size:10px;font-weight:700;letter-spacing:.4px;
+  padding:2px 8px;border-radius:999px;border:1px solid;
+}
+.badge-todo{color:var(--gold);border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.09)}
+.badge-done{color:var(--green);border-color:rgba(34,197,94,.32);background:rgba(34,197,94,.08)}
+.badge-type{color:var(--purple);border-color:rgba(168,85,247,.32);background:rgba(168,85,247,.09)}
+.ostatus{font-size:11px;color:var(--dim)}
+.ostatus.warn{color:var(--red)}
+
+.title{
+  font-size:13.5px;color:#b9c2da;line-height:1.55;
+  margin-bottom:10px;word-break:break-all;
+}
+.row.sel .title{color:#d3daf0}
+
+.fields{
+  display:grid;grid-template-columns:132px minmax(0,1fr) 118px;
+  gap:9px;margin-bottom:9px;
+}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.fld span{
+  font-size:9.5px;letter-spacing:1.1px;color:#4a5470;
+  text-transform:uppercase;font-family:var(--mono);
+}
+.fld input{
+  height:31px;padding:0 9px;width:100%;min-width:0;
+  font-family:var(--sans);font-size:12.5px;color:var(--text);
+  background:#0c0c1e;border:1px solid var(--border);border-radius:8px;
+  outline:none;transition:.15s;
+}
+.fld input.mono{font-family:var(--mono);font-weight:600}
+.fld input:hover:not(:read-only){border-color:var(--border-hi)}
+.fld input:focus:not(:read-only){
+  border-color:rgba(0,229,255,.6);
+  box-shadow:0 0 0 3px rgba(0,229,255,.09);background:#0e0e24;
+}
+.fld input:read-only{color:var(--muted);background:#0a0a18;cursor:default}
+.fld input.dirty{border-color:rgba(251,191,36,.5);background:rgba(251,191,36,.05)}
+
+.row-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.seller{font-size:11px;color:var(--dim)}
+.seller b{color:var(--muted);font-weight:600}
+.oid{font-family:var(--mono);font-size:10px;color:#3d4560;letter-spacing:.3px}
+.dirty-tag{
+  font-size:9.5px;color:var(--gold);border:1px solid rgba(251,191,36,.3);
+  border-radius:4px;padding:1px 6px;background:rgba(251,191,36,.07);
+}
+
+.price{
+  text-align:right;font-family:var(--mono);
+  font-size:19px;font-weight:700;color:var(--gold);
+  text-shadow:0 0 16px rgba(251,191,36,.28);
+  padding-top:1px;
+}
+.price .cur{font-size:12px;opacity:.7;margin-right:1px}
+.price .lab{
+  display:block;font-size:9.5px;font-weight:600;letter-spacing:1px;
+  color:#4a5470;text-shadow:none;margin-top:3px;font-family:var(--mono);
+}
+
+/* ───────────── states ───────────── */
+.panel{
+  background:linear-gradient(170deg,var(--card),#101024);
+  border:1px solid var(--border);border-radius:14px;
+  padding:52px 24px;text-align:center;
+}
+.panel .ico{font-size:34px;margin-bottom:12px;opacity:.85}
+.panel .t{font-size:15px;font-weight:700;margin-bottom:6px}
+.panel .d{font-size:12.5px;color:var(--muted);line-height:1.7}
+.panel .d code{
+  font-family:var(--mono);font-size:11.5px;color:var(--cyan);
+  background:rgba(0,229,255,.08);padding:1px 6px;border-radius:5px;
+}
+.panel.err{border-color:rgba(248,113,113,.35);background:linear-gradient(170deg,#1d1220,#150e1c)}
+.panel.err .t{color:var(--red)}
+.panel.err pre{
+  font-family:var(--mono);font-size:11.5px;color:#f0a8a8;text-align:left;
+  background:rgba(0,0,0,.32);border:1px solid rgba(248,113,113,.2);
+  border-radius:9px;padding:11px 13px;margin:14px auto 0;max-width:660px;
+  white-space:pre-wrap;word-break:break-all;
+}
+.skel{
+  height:74px;border-radius:11px;margin-bottom:10px;
+  background:linear-gradient(90deg,#14142c 25%,#1b1b3d 50%,#14142c 75%);
+  background-size:220% 100%;animation:sh 1.3s linear infinite;
+}
+@keyframes sh{0%{background-position:120% 0}100%{background-position:-120% 0}}
+
+/* ───────────── action bar ───────────── */
+.actionbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:70;
+  display:flex;align-items:center;gap:16px;
+  padding:13px 22px;
+  background:rgba(11,11,24,.93);
+  backdrop-filter:blur(16px);
+  border-top:1px solid var(--border);
+}
+.actionbar::before{
+  content:"";position:absolute;left:0;right:0;top:-1px;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(0,229,255,.5),rgba(236,72,153,.4),transparent);
+}
+.ab-sum{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.ab-sum .lab{font-size:12px;color:var(--muted)}
+.ab-sum b{font-family:var(--mono);font-size:17px;color:var(--cyan)}
+.ab-sum .amt{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--gold)}
+.ab-hint{
+  font-size:11px;color:var(--dim);
+  border-left:1px solid var(--border);padding-left:16px;
+}
+.ab-spacer{flex:1}
+.btn-import{
+  font-size:13.5px;font-weight:700;padding:10px 22px;border-radius:10px;
+  letter-spacing:.4px;
+}
+
+/* ───────────── toast ───────────── */
+#toast{
+  position:fixed;left:50%;bottom:88px;z-index:99;
+  transform:translate(-50%,14px);
+  opacity:0;pointer-events:none;transition:.26s cubic-bezier(.2,.8,.3,1);
+  max-width:min(560px,88vw);
+}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#toast .box{
+  display:flex;align-items:center;gap:10px;
+  padding:11px 18px;border-radius:11px;
+  background:rgba(17,17,38,.97);
+  border:1px solid var(--border-hi);
+  box-shadow:0 16px 44px -14px rgba(0,0,0,.9);
+  font-size:12.5px;color:var(--text);
+}
+#toast.ok .box{border-color:rgba(34,197,94,.45);box-shadow:0 16px 44px -14px rgba(0,0,0,.9),0 0 22px -8px rgba(34,197,94,.6)}
+#toast.err .box{border-color:rgba(248,113,113,.5);box-shadow:0 16px 44px -14px rgba(0,0,0,.9),0 0 22px -8px rgba(248,113,113,.6)}
+#toast .dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);flex:0 0 7px}
+#toast.ok .dot{background:var(--green);box-shadow:0 0 9px var(--green)}
+#toast.err .dot{background:var(--red);box-shadow:0 0 9px var(--red)}
+
+@media (max-width:980px){
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .fields{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .row{grid-template-columns:26px minmax(0,1fr)}
+  .price{grid-column:2;text-align:left}
+  .ab-hint{display:none}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="logo">🐟</div>
+  <div>
+    <h1>闲鱼订单 · 填入账本</h1>
+    <div class="sub">Neon Ledger · Import Console</div>
+  </div>
+  <div class="topbar-spacer"></div>
+  <button class="btn" id="btnRefresh" title="重新读取 MySQL">↻ 刷新数据</button>
+</header>
+
+<div class="toolbar">
+  <div class="search">
+    <span class="mag">🔍</span>
+    <input id="q" type="text" placeholder="搜索标题 / 品牌 / 型号 / 卖家 / 订单号" autocomplete="off">
+  </div>
+  <div class="chips" id="chips">
+    <button class="chip" data-f="todo">待填入<span class="n" id="nTodo">0</span></button>
+    <button class="chip" data-f="done">已填入<span class="n" id="nDone">0</span></button>
+    <button class="chip" data-f="all">全部<span class="n" id="nAll">0</span></button>
+  </div>
+  <div class="toolbar-spacer"></div>
+  <button class="btn" id="btnSelTodo">勾选本页待填入</button>
+  <button class="btn" id="btnClear">清空选择</button>
+  <button class="btn" id="btnExpand">展开全部</button>
+  <button class="btn" id="btnCollapse">折叠全部</button>
+</div>
+
+<main>
+  <section class="stats" id="stats"></section>
+  <section id="content"></section>
+</main>
+
+<footer class="actionbar">
+  <div class="ab-sum">
+    <span class="lab">已选</span><b id="selCount">0</b><span class="lab">条</span>
+    <span class="lab" style="margin-left:6px">合计</span><span class="amt" id="selSum">¥0.00</span>
+  </div>
+  <div class="ab-hint">买入订单无卖出价，<b style="color:#8899bb">sell 留空</b>，之后在账本里自己补</div>
+  <div class="ab-spacer"></div>
+  <button class="btn btn-cyan btn-import" id="btnImport" disabled>填入账本 →</button>
+</footer>
+
+<div id="toast"><div class="box"><span class="dot"></span><span id="toastMsg"></span></div></div>
+
+<script>
+(function(){
+"use strict";
+
+var WD = ["周日","周一","周二","周三","周四","周五","周六"];
+
+var state = {
+  orders: [],
+  byId: {},
+  filter: "todo",
+  q: "",
+  selected: {},
+  loading: true,
+  error: null
+};
+
+var $ = function(id){ return document.getElementById(id); };
+
+function esc(s){
+  return String(s == null ? "" : s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+function money(n){
+  var v = Number(n) || 0;
+  return v.toLocaleString("zh-CN",{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function pad2(n){ return n < 10 ? "0"+n : ""+n; }
+function dayKey(o){ return (o.order_date || "").slice(0,10); }
+function monthKey(o){ return (o.order_date || "").slice(0,7); }
+
+function weekdayOf(key){
+  var p = key.split("-");
+  if(p.length < 3) return "";
+  return WD[new Date(+p[0], +p[1]-1, +p[2]).getDay()];
+}
+
+function toast(msg, kind){
+  var t = $("toast");
+  $("toastMsg").textContent = msg;
+  t.className = "show " + (kind || "");
+  clearTimeout(toast._h);
+  toast._h = setTimeout(function(){ t.className = ""; }, 3600);
+}
+
+/* ───────── data ───────── */
+
+function decorate(o){
+  if(o._cost == null){
+    o._cost = (o.price == null || o.price === "") ? "" : String(o.price);
+  }
+  if(o._brand == null) o._brand = o.brand || "";
+  if(o._model == null) o._model = o.model || "";
+  return o;
+}
+
+function load(){
+  state.loading = true; state.error = null;
+  render();
+  fetch("/api/orders",{cache:"no-store"})
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(!j.ok) throw new Error(j.error || "接口返回 ok=false");
+      state.orders = (j.orders || []).map(function(o){
+        decorate(o);
+        state.byId[o.order_id] = o;
+        return o;
+      });
+      state.loading = false;
+      render();
+    })
+    .catch(function(e){
+      state.loading = false;
+      state.error = e && e.message ? e.message : String(e);
+      render();
+    });
+}
+
+/* ───────── filter / group ───────── */
+
+function matchFilter(o){
+  if(state.filter === "todo" && o.imported) return false;
+  if(state.filter === "done" && !o.imported) return false;
+  var q = state.q.trim().toLowerCase();
+  if(!q) return true;
+  var hay = [o.item_title, o._brand, o._model, o.counterparty, o.order_id, o.order_status]
+    .join(" ").toLowerCase();
+  return hay.indexOf(q) >= 0;
+}
+
+function visible(){ return state.orders.filter(matchFilter); }
+
+function groupByDay(list){
+  var months = [], mIndex = {}, days = [], dIndex = {};
+  list.forEach(function(o){
+    var mk = monthKey(o) || "未知";
+    var dk = dayKey(o) || "未知";
+    if(!mIndex[mk]){ mIndex[mk] = {key:mk, count:0, sum:0, days:[]}; months.push(mIndex[mk]); }
+    if(!dIndex[dk]){
+      dIndex[dk] = {key:dk, count:0, sum:0, rows:[]};
+      mIndex[mk].days.push(dIndex[dk]);
+    }
+    mIndex[mk].count++; mIndex[mk].sum += Number(o.price)||0;
+    dIndex[dk].count++; dIndex[dk].sum += Number(o.price)||0;
+    dIndex[dk].rows.push(o);
+  });
+  return months;
+}
+
+/* ───────── render ───────── */
+
+function renderStats(){
+  var all = state.orders.length, done = 0, todoSum = 0;
+  state.orders.forEach(function(o){
+    if(o.imported) done++; else todoSum += Number(o.price)||0;
+  });
+  var todo = all - done;
+  var cards = [
+    {k:"抓取订单总数", v:all, u:"笔", d:"MySQL · xianyu_orders", a:"var(--cyan)"},
+    {k:"已填入账本", v:done, u:"笔", d:"data.json · source_order_id", a:"var(--green)"},
+    {k:"待填入", v:todo, u:"笔", d:todo ? "勾选后点右下角填入" : "全部处理完毕", a:"var(--magenta)"},
+    {k:"待填入金额", v:money(todoSum), u:"", d:"买入成本合计（¥）", a:"var(--gold)", pre:"¥"}
+  ];
+  $("stats").innerHTML = cards.map(function(c){
+    return '<div class="stat" style="--accent:'+c.a+'">'
+      + '<div class="k">'+esc(c.k)+'</div>'
+      + '<div class="v">'+(c.pre?esc(c.pre):"")+esc(c.v)+(c.u?'<small>'+esc(c.u)+'</small>':"")+'</div>'
+      + '<div class="d">'+esc(c.d)+'</div>'
+      + '</div>';
+  }).join("");
+  $("nTodo").textContent = todo;
+  $("nDone").textContent = done;
+  $("nAll").textContent = all;
+}
+
+function renderRow(o){
+  var sel = !!state.selected[o.order_id];
+  var imported = !!o.imported;
+  var ro = imported ? " readonly" : "";
+  var st = o.order_status || "";
+  var warn = /退款|关闭/.test(st) ? " warn" : "";
+  var typeLabel = o.trade_type === "sold" ? "卖出" : "买入";
+
+  var origCost = (o.price == null || o.price === "") ? "" : String(o.price);
+  var dBrand = !imported && o._brand !== (o.brand||"");
+  var dModel = !imported && o._model !== (o.model||"");
+  var dCost  = !imported && String(o._cost) !== origCost;
+  var dirty = (dBrand || dModel || dCost) ? '<span class="dirty-tag">已改</span>' : "";
+
+  return '<div class="row'+(sel?" sel":"")+(imported?" done":"")+'" data-oid="'+esc(o.order_id)+'">'
+    + '<label class="ck"><input type="checkbox" class="rowCk" data-oid="'+esc(o.order_id)+'"'
+        + (sel?" checked":"") + (imported?" disabled":"") + ' title="'
+        + (imported?"已填入账本，不能重复填入":"勾选后可填入账本") + '"></label>'
+    + '<div class="row-main">'
+      + '<div class="row-top">'
+        + '<span class="time">'+esc((o.order_date||"").slice(11,19) || "--:--:--")+'</span>'
+        + '<span class="badge '+(imported?"badge-done":"badge-todo")+'">'+(imported?"已填入":"待填入")+'</span>'
+        + '<span class="badge badge-type">'+esc(typeLabel)+'</span>'
+        + '<span class="ostatus'+warn+'">'+esc(st || "—")+'</span>'
+        + dirty
+      + '</div>'
+      + '<div class="title">'+esc(o.item_title || "(无标题)")+'</div>'
+      + '<div class="fields">'
+        + '<label class="fld"><span>品牌 brand</span>'
+          + '<input class="fBrand'+(dBrand?" dirty":"")+'" type="text" value="'+esc(o._brand)+'" placeholder="未识别"'+ro+'></label>'
+        + '<label class="fld"><span>型号 model</span>'
+          + '<input class="fModel'+(dModel?" dirty":"")+'" type="text" value="'+esc(o._model)+'" placeholder="手动填写"'+ro+'></label>'
+        + '<label class="fld"><span>成本 cost ¥</span>'
+          + '<input class="fCost mono'+(dCost?" dirty":"")+'" type="number" step="0.01" min="0" value="'+esc(o._cost)+'"'+ro+'></label>'
+      + '</div>'
+      + '<div class="row-foot">'
+        + '<span class="seller">'+(o.trade_type==="sold"?"买家":"卖家")+' · <b>'+esc(o.counterparty || "—")+'</b></span>'
+        + '<span class="oid">'+esc(o.order_id)+'</span>'
+      + '</div>'
+    + '</div>'
+    + '<div class="price"><span class="cur">¥</span>'+esc(money(o.price))
+      + '<span class="lab">'+(o.trade_type==="sold"?"成交价":"买入价")+'</span></div>'
+    + '</div>';
+}
+
+function renderDay(d){
+  var todo = d.rows.filter(function(o){ return !o.imported; }).length;
+  var prog = todo === 0
+    ? '<span class="day-prog done">✓ 全部已填入</span>'
+    : '<span class="day-prog">'+todo+' 待填 / '+d.count+' 笔</span>';
+  var p = d.key.split("-");
+  var label = p.length === 3 ? (+p[1])+"月"+(+p[2])+"日" : d.key;
+
+  return '<div class="day" data-day="'+esc(d.key)+'">'
+    + '<div class="day-head">'
+      + '<label class="ck" data-stop="1"><input type="checkbox" class="dayCk" data-day="'+esc(d.key)+'" title="全选本日待填入"></label>'
+      + '<span class="day-title">'+esc(label)+'<span class="wd">'+esc(weekdayOf(d.key))+'</span></span>'
+      + '<span class="day-meta">'+d.count+' 笔 · <span class="sum">¥'+esc(money(d.sum))+'</span></span>'
+      + '<span class="sp"></span>'
+      + prog
+      + '<span class="caret">▼</span>'
+    + '</div>'
+    + '<div class="day-body">'+d.rows.map(renderRow).join("")+'</div>'
+    + '</div>';
+}
+
+function renderContent(){
+  var c = $("content");
+  if(state.loading){
+    c.innerHTML = '<div class="panel" style="padding:26px 24px">'
+      + Array(4).join('<div class="skel"></div>')
+      + '<div style="margin-top:14px;font-size:12px;color:#5a6580">正在读取 MySQL neon_ledger.xianyu_orders …</div></div>';
+    return;
+  }
+  if(state.error){
+    c.innerHTML = '<div class="panel err">'
+      + '<div class="ico">⚠️</div>'
+      + '<div class="t">读取订单失败</div>'
+      + '<div class="d">检查 MySQL 服务是否启动、<code>neon_ledger</code> 库是否存在，'
+      + '以及是否已经跑过 <code>xianyu_scraper.py</code>。</div>'
+      + '<pre>'+esc(state.error)+'</pre>'
+      + '<div style="margin-top:16px"><button class="btn" id="btnRetry">↻ 重试</button></div>'
+      + '</div>';
+    var r = $("btnRetry");
+    if(r) r.onclick = load;
+    return;
+  }
+  if(!state.orders.length){
+    c.innerHTML = '<div class="panel">'
+      + '<div class="ico">🐟</div>'
+      + '<div class="t">数据库里还没有订单</div>'
+      + '<div class="d">先在启动器点「运行抓单脚本」跑一次 <code>xianyu_scraper.py</code>，'
+      + '抓完回来点右上角「↻ 刷新数据」。</div>'
+      + '</div>';
+    return;
+  }
+
+  var list = visible();
+  if(!list.length){
+    var msg = state.q
+      ? '没有匹配「'+esc(state.q)+'」的订单，换个关键词或切到「全部」看看。'
+      : (state.filter === "todo"
+          ? '全部订单都已填入账本 🎉 切到「已填入」或「全部」可以回看。'
+          : '这个筛选条件下暂时没有订单。');
+    c.innerHTML = '<div class="panel"><div class="ico">🔍</div>'
+      + '<div class="t">没有可显示的订单</div><div class="d">'+msg+'</div></div>';
+    return;
+  }
+
+  var months = groupByDay(list);
+  c.innerHTML = months.map(function(m){
+    var p = m.key.split("-");
+    var label = p.length === 2 ? (+p[0])+"年"+(+p[1])+"月" : m.key;
+    return '<section class="month">'
+      + '<div class="month-head"><span class="m">'+esc(label)+'</span>'
+      + '<span class="mi">'+m.days.length+' 天 · '+m.count+' 笔 · ¥'+esc(money(m.sum))+'</span></div>'
+      + m.days.map(renderDay).join("")
+      + '</section>';
+  }).join("");
+
+  syncAllDays();
+}
+
+function render(){
+  renderStats();
+  renderContent();
+  syncFooter();
+  Array.prototype.forEach.call(document.querySelectorAll(".chip"), function(el){
+    el.classList.toggle("on", el.getAttribute("data-f") === state.filter);
+  });
+}
+
+/* ───────── selection ───────── */
+
+function selOrders(){
+  var out = [];
+  for(var k in state.selected){
+    if(state.selected[k] && state.byId[k] && !state.byId[k].imported) out.push(state.byId[k]);
+  }
+  return out;
+}
+
+function syncFooter(){
+  var list = selOrders(), sum = 0;
+  list.forEach(function(o){
+    var c = parseFloat(o._cost);
+    sum += isNaN(c) ? 0 : c;
+  });
+  $("selCount").textContent = list.length;
+  $("selSum").textContent = "¥" + money(sum);
+  $("btnImport").disabled = list.length === 0;
+}
+
+function syncDay(dayEl){
+  if(!dayEl) return;
+  var cks = dayEl.querySelectorAll(".rowCk:not(:disabled)");
+  var on = 0;
+  Array.prototype.forEach.call(cks, function(c){ if(c.checked) on++; });
+  var all = dayEl.querySelector(".dayCk");
+  if(all){
+    all.checked = cks.length > 0 && on === cks.length;
+    all.indeterminate = on > 0 && on < cks.length;
+    all.disabled = cks.length === 0;
+  }
+  dayEl.classList.toggle("has-sel", on > 0);
+}
+
+function syncAllDays(){
+  Array.prototype.forEach.call(document.querySelectorAll(".day"), syncDay);
+}
+
+/* ───────── events ───────── */
+
+document.addEventListener("change", function(e){
+  var t = e.target;
+
+  if(t.classList && t.classList.contains("rowCk")){
+    var oid = t.getAttribute("data-oid");
+    if(t.checked) state.selected[oid] = true; else delete state.selected[oid];
+    var row = t.closest(".row");
+    if(row) row.classList.toggle("sel", t.checked);
+    syncDay(t.closest(".day"));
+    syncFooter();
+    return;
+  }
+
+  if(t.classList && t.classList.contains("dayCk")){
+    var dayEl = t.closest(".day");
+    Array.prototype.forEach.call(dayEl.querySelectorAll(".rowCk:not(:disabled)"), function(c){
+      c.checked = t.checked;
+      var id = c.getAttribute("data-oid");
+      if(t.checked) state.selected[id] = true; else delete state.selected[id];
+      var row = c.closest(".row");
+      if(row) row.classList.toggle("sel", t.checked);
+    });
+    syncDay(dayEl);
+    syncFooter();
+    return;
+  }
+
+  if(t.classList && t.classList.contains("fCost")){
+    var o = state.byId[t.closest(".row").getAttribute("data-oid")];
+    if(o) o._cost = t.value;
+    markDirty(t, o);
+    syncFooter();
+  }
+});
+
+document.addEventListener("input", function(e){
+  var t = e.target;
+  if(!t.classList) return;
+  var row = t.closest ? t.closest(".row") : null;
+  if(!row) return;
+  var o = state.byId[row.getAttribute("data-oid")];
+  if(!o) return;
+  if(t.classList.contains("fBrand")){ o._brand = t.value; markDirty(t, o); }
+  else if(t.classList.contains("fModel")){ o._model = t.value; markDirty(t, o); }
+  else if(t.classList.contains("fCost")){ o._cost = t.value; markDirty(t, o); syncFooter(); }
+});
+
+function markDirty(input, o){
+  if(!o) return;
+  var orig = String((o.price == null || o.price === "") ? "" : o.price);
+  var changed = (input.classList.contains("fBrand") && o._brand !== (o.brand||""))
+    || (input.classList.contains("fModel") && o._model !== (o.model||""))
+    || (input.classList.contains("fCost") && String(o._cost) !== orig);
+  input.classList.toggle("dirty", changed);
+}
+
+document.addEventListener("click", function(e){
+  var head = e.target.closest ? e.target.closest(".day-head") : null;
+  if(head && !e.target.closest("[data-stop]")){
+    head.parentElement.classList.toggle("collapsed");
+  }
+});
+
+$("q").addEventListener("input", function(){
+  state.q = this.value;
+  clearTimeout($("q")._h);
+  var self = this;
+  $("q")._h = setTimeout(function(){ renderContent(); }, 160);
+});
+
+Array.prototype.forEach.call(document.querySelectorAll(".chip"), function(el){
+  el.addEventListener("click", function(){
+    state.filter = this.getAttribute("data-f");
+    render();
+  });
+});
+
+$("btnRefresh").addEventListener("click", function(){
+  toast("正在重新读取数据库…");
+  load();
+});
+
+$("btnSelTodo").addEventListener("click", function(){
+  var n = 0;
+  Array.prototype.forEach.call(document.querySelectorAll(".rowCk:not(:disabled)"), function(c){
+    if(!c.checked){
+      c.checked = true;
+      var row = c.closest(".row");
+      if(row) row.classList.add("sel");
+      n++;
+    }
+    state.selected[c.getAttribute("data-oid")] = true;
+  });
+  syncAllDays(); syncFooter();
+  toast(n ? "已勾选当前列表 "+n+" 条待填入订单" : "当前列表没有可勾选的待填入订单", n ? "ok" : "");
+});
+
+$("btnClear").addEventListener("click", function(){
+  state.selected = {};
+  Array.prototype.forEach.call(document.querySelectorAll(".rowCk"), function(c){
+    c.checked = false;
+    var row = c.closest(".row");
+    if(row) row.classList.remove("sel");
+  });
+  syncAllDays(); syncFooter();
+});
+
+$("btnExpand").addEventListener("click", function(){
+  Array.prototype.forEach.call(document.querySelectorAll(".day"), function(d){ d.classList.remove("collapsed"); });
+});
+$("btnCollapse").addEventListener("click", function(){
+  Array.prototype.forEach.call(document.querySelectorAll(".day"), function(d){ d.classList.add("collapsed"); });
+});
+
+$("btnImport").addEventListener("click", function(){
+  var list = selOrders();
+  if(!list.length){ toast("先勾选要填入的订单", "err"); return; }
+
+  var items = list.map(function(o){
+    return {
+      order_id: o.order_id,
+      brand: (o._brand || "").trim(),
+      model: (o._model || "").trim(),
+      cost: o._cost === "" ? "" : o._cost
+    };
+  });
+
+  var btn = this;
+  btn.disabled = true;
+  var old = btn.textContent;
+  btn.textContent = "写入中…";
+
+  fetch("/api/import",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({items: items})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(j){
+    if(!j.ok) throw new Error(j.error || "写入失败");
+    var added = (j.added || []).length, skipped = (j.skipped || []).length;
+    toast("✓ 已填入 "+added+" 条到 data.json"
+      + (skipped ? "，跳过 "+skipped+" 条（已存在）" : "")
+      + " · 账本现有 "+j.ledger_total+" 条记录", "ok");
+    state.selected = {};
+    load();
+  })
+  .catch(function(e){
+    toast("填入失败：" + (e && e.message ? e.message : e), "err");
+  })
+  .then(function(){
+    btn.textContent = old;
+    syncFooter();
+  });
+});
+
+document.addEventListener("keydown", function(e){
+  if((e.ctrlKey || e.metaKey) && e.key === "Enter"){
+    e.preventDefault();
+    if(!$("btnImport").disabled) $("btnImport").click();
+  }
+});
+
+load();
+})();
+</script>
+</body>
+</html>
