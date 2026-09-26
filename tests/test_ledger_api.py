@@ -1849,3 +1849,61 @@ def test_toolbar_actions_group_wraps_so_the_last_button_stays_reachable():
         "不换行的话窗口一窄，最右边的按钮就被挤出视口，点都点不到"
     assert "justify-content: flex-end" in rule, \
         "换行后不右对齐，掉下去的那半行会孤零零贴在左边"
+
+
+# ─── 品牌格要能选，不只是能手打（用浏览器原生 datalist，不自己造面板）───
+
+def test_brand_field_is_wired_to_a_datalist():
+    """#fBrand 必须挂上 list，页面里也必须有那个 datalist。
+
+    他的原话是「品牌那里我可以选择 而不是我手动输入」。
+    少了 list 属性，datalist 写了也不显示 —— 而页面不报错，看起来一切正常，
+    只是点开品牌格什么也不弹，跟没做一样。
+    """
+    src = _index_js()
+    m = re.search(r'<input[^>]*id="fBrand"[^>]*>', src)
+    assert m, "找不到品牌输入框"
+    assert 'list="brandOptions"' in m.group(0), \
+        "品牌格没挂 list，datalist 不会显示，他还是只能手打"
+    assert '<datalist id="brandOptions">' in src, \
+        "页面里没有 brandOptions 这个 datalist，list 指向空处"
+
+
+def _brand_options(brands, used):
+    js = (
+        _top_level_fn(_index_js(), "function normKey(text) {") + "\n"
+        + _top_level_fn(_index_js(), "function brandOptions(brands, usedNames) {") + "\n"
+        + "process.stdout.write(JSON.stringify(brandOptions(%s, %s)));\n"
+        % (json.dumps(brands, ensure_ascii=False), json.dumps(used, ensure_ascii=False))
+    )
+    return _run_node(js)
+
+
+def test_brand_options_come_from_the_catalog_and_from_names_already_used():
+    """选项 = 知识库规范名（别名当提示）+ 账本里用过但没入库的写法。
+
+    只喂知识库：账本里那些还没入库的写法选不到，等于逼他继续手打；
+    只喂账本：新品牌永远进不了候选，知识库白建。
+    另外 'MSI' 已经被 '微星' 的别名覆盖，不能再单独占一行 ——
+    否则下拉框里又把同一个品牌拆成两种写法，正是统计分叉的老毛病。
+    """
+    got = _brand_options(
+        [{"canonical": "微星", "aliases": ["MSI"]},
+         {"canonical": "英特尔", "aliases": ["INTER", "Intel"]}],
+        ["微星", "MSI", "华硕", "", None],
+    )
+    assert got == [
+        {"value": "微星", "label": "MSI"},
+        {"value": "英特尔", "label": "INTER / Intel"},
+        {"value": "华硕", "label": ""},
+    ], "实到 %s" % (got,)
+
+
+def test_brand_options_degrade_to_nothing_when_there_is_no_catalog():
+    """知识库拉不到时返回空数组，不许抛。
+
+    loadCatalog 失败是设计里允许的（记账不能被知识库阻塞）；
+    这里一抛，弹窗直接开不出来，比没有下拉框严重得多。
+    """
+    assert _brand_options(None, None) == []
+    assert _brand_options([], []) == []

@@ -1059,7 +1059,8 @@ tr:hover td { background: rgba(255,255,255,0.01); }
     </div>
     <div class="field">
       <label>品牌</label>
-      <input id="fBrand" placeholder="微星 / 华硕 / 技嘉...">
+      <input id="fBrand" list="brandOptions" placeholder="微星 / 华硕 / 技嘉..." autocomplete="off">
+      <datalist id="brandOptions"></datalist>
     </div>
     <div class="field">
       <label>型号</label>
@@ -1323,6 +1324,41 @@ async function loadCatalog() {
   if (!res.ok) throw new Error('HTTP ' + res.status);
   CATALOG = await res.json();
   buildCatalogIndex(CATALOG);
+}
+
+// 候选 = 知识库规范名（别名当提示文字）+ 账本里用过但还没入库的写法。
+// 去重按 normKey：'MSI' 已经被 '微星' 的别名覆盖，再单独列一行就又把同一个品牌
+// 拆成两种写法，正是统计分叉的老毛病。
+function brandOptions(brands, usedNames) {
+  const seen = {};
+  const out = [];
+  (brands || []).forEach(b => {
+    const name = String((b && b.canonical) || '').trim();
+    if (!name) return;
+    seen[normKey(name)] = 1;
+    const aliases = ((b && b.aliases) || [])
+      .map(a => String(a || '').trim())
+      .filter(a => a && normKey(a) !== normKey(name));
+    aliases.forEach(a => { seen[normKey(a)] = 1; });
+    out.push({ value: name, label: aliases.join(' / ') });
+  });
+  (usedNames || []).forEach(n => {
+    const name = String(n || '').trim();
+    if (!name || seen[normKey(name)]) return;
+    seen[normKey(name)] = 1;
+    out.push({ value: name, label: '' });
+  });
+  return out;
+}
+
+function renderBrandOptions() {
+  const dl = document.getElementById('brandOptions');
+  if (!dl) return;
+  const used = {};
+  items.forEach(i => { if (i.brand) used[i.brand] = 1; });
+  const opts = brandOptions((CATALOG && CATALOG.brands) || [], Object.keys(used));
+  dl.innerHTML = opts.map(o =>
+    `<option value="${esc(o.value)}"${o.label ? ` label="${esc(o.label)}"` : ''}></option>`).join('');
 }
 
 function parseItems(raw) {
@@ -1964,6 +2000,7 @@ function renderChipsets() {
 }
 
 function render() {
+  renderBrandOptions();
   updateStats();
   if (currentView === 'brands') renderBrands();
   else if (currentView === 'models') renderModels();
