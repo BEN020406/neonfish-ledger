@@ -4,9 +4,11 @@
 dry-run 绝不动盘；apply 之后除 cat 外逐条相等、条数不变。
 断言写在脚本自己的输出上，不接受"我看过 diff 了"。
 
-**报告必须打在打过补丁的临时副本上**：线上 catalog.json 的 121 条 part 现在
-cat 全是 unknown（补丁刻意还没应用），直接拿它出报告每行都是 unknown，
-distribution 全 0 的断言会假绿。所以本文件用 patched_catalog fixture 现拷现打。
+**报告的起点是"播种态快照 + 已应用补丁"，不是线上库直接加补丁**：补丁 2026-09-26
+已真落库，线上 catalog.json 里 凯侠/INTER 都降级成了别名，再从它出发跑一遍品牌改名会
+在 validate() 第一步就报「from 不在库里」。所以本文件从
+tests/fixtures/catalog_pre_p3.json 起步现拷现打，判定结果与当初的报告同源。
+REAL_CATALOG_FILE 仍指线上 catalog.json —— 「dry-run 不许动盘」那两条盯的就是它。
 所有用例都打在 tmp 目录的副本上，线上 data.json / catalog.json 一个字节都不动。
 """
 import collections
@@ -23,6 +25,9 @@ import migrate_add_cat as mg
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REAL_DATA_FILE = os.path.join(ROOT, 'data.json')
 REAL_CATALOG_FILE = os.path.join(ROOT, 'catalog.json')
+# 打补丁之前的起点。线上库已打过补丁，拿它再跑一遍品牌改名会在第一步就报
+# 「from 不在库里」，红在起点而不是红在被测行为上。
+PRE_PATCH_CATALOG = os.path.join(ROOT, 'tests', 'fixtures', 'catalog_pre_p3.json')
 PATCH_FILE = os.path.join(ROOT, 'p3_catalog_patch.json')
 
 # 规格 §3 认可的那份记录级分布，与 tests/test_apply_patch.py 的
@@ -49,13 +54,13 @@ def catalog_with(parts):
 
 @pytest.fixture
 def patched_catalog(tmp_path, monkeypatch):
-    """线上 catalog.json 的副本 + 真补丁里 high 那部分（3 条 medium 他还没批）。
+    """播种态快照的副本 + 真补丁里 high 那部分（3 条 medium 他还没批）。
 
     两个 CATALOG_FILE 一起 monkeypatch：apply_patch 最后走 app_standalone.save_catalog，
     少了这一手，校验器一旦退回「读副本写线上」就会真改坏知识库。
     """
     path = tmp_path / 'catalog_patched.json'
-    shutil.copyfile(REAL_CATALOG_FILE, str(path))
+    shutil.copyfile(PRE_PATCH_CATALOG, str(path))
     import app_standalone as m
     monkeypatch.setattr(ap, 'CATALOG_FILE', str(path))
     monkeypatch.setattr(m, 'CATALOG_FILE', str(path))
@@ -178,3 +183,24 @@ def test_catalog_argument_is_the_file_the_report_is_built_from(tmp_path, monkeyp
         # 拿整段 stdout 做子串匹配会假绿。
         assert "品类分布: {'%s': 1}" % cat in out, \
             '--catalog 没生效，报告仍在读另一份库\n%s' % out
+
+
+def test_production_catalog_already_carries_the_patched_state():
+    """线上 catalog.json 必须已经处在补丁之后的状态。
+
+    上面那些用例全打在快照上，就算 catalog.json 被 checkout 回退掉也照样绿。
+    这里盯的就是真文件本身：错误拼写品牌只能当别名存在，品类不能还是空壳。
+    阈值刻意写下限不写死数：medium 三条以后批了、新配件继续入库，都不该让这条变红。
+    """
+    import app_standalone as m
+    catalog = mg.load_catalog_json()
+    names = {b['canonical'] for b in catalog['brands']}
+    assert '凯侠' not in names and 'INTER' not in names, '品牌归一没落库'
+    assert m.resolve_brand(catalog, '凯侠') == '铠侠'
+    assert m.resolve_brand(catalog, 'INTER') == '英特尔'
+    legal = {c['key'] for c in m.CATALOG_CATEGORIES}
+    missing = [p for p in catalog['parts'] if p.get('cat') not in legal]
+    assert missing == [], '这些 part 没有合法 cat: %s' % (missing[:5],)
+    classified = sum(1 for p in catalog['parts'] if p['cat'] != 'unknown')
+    assert classified >= 100, \
+        '全库 %d 条 part 只有 %d 条判出了品类，品类层没落库' % (len(catalog['parts']), classified)

@@ -15,6 +15,11 @@ import pytest
 import apply_catalog_patch as ap
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 补丁 2026-09-26 已真落库：线上 catalog.json 里 凯侠/INTER 都已降级成别名，
+# 「从播种态出发跑补丁」的用例再读线上库会在 validate() 第一步就报
+# 「brand_renames 的 from 不在库里」，红在起点而不是红在被测行为上。
+# 所以这类用例一律打在 tests/fixtures/catalog_pre_p3.json 这份快照上。
+PRE_PATCH_CATALOG = os.path.join(ROOT, "tests", "fixtures", "catalog_pre_p3.json")
 
 
 CATALOG = {
@@ -181,15 +186,17 @@ def test_apply_merges_and_keeps_history_resolvable(sandbox):
 
 @pytest.fixture
 def real_brand_sandbox(tmp_path, monkeypatch):
-    """品牌层要打在真 catalog.json 的品牌清单上，不能打在模块级 CATALOG 上。
+    """品牌层要打在「播种态那份完整品牌清单」上，不能打在模块级 CATALOG 上。
 
     模块级 CATALOG 只有微星/英特尔两个品牌，真实补丁里其余 21 条 brand_aliases
     会被 validate() 判成「canonical 不在库里」，用例永远绿不了；而计划预期的红字
-    是 `assert '凯侠' not in names` —— 只有真品牌清单（凯侠/INTER 都在库里）
-    才报得出那条。所以拷一份真库到 tmp，两个 CATALOG_FILE 一起 patch，照样不碰真库。
+    是 `assert '凯侠' not in names` —— 只有播种态清单（凯侠/INTER 都还是规范名）
+    才报得出那条。2026-09-26 补丁真落了库，线上 catalog.json 已经不满这个前提，
+    所以起点换成 catalog_pre_p3.json 快照。拷到 tmp、两个 CATALOG_FILE 一起 patch，
+    照样不碰真库。
     """
     path = tmp_path / "catalog.json"
-    shutil.copyfile(os.path.join(ROOT, "catalog.json"), str(path))
+    shutil.copyfile(PRE_PATCH_CATALOG, str(path))
     monkeypatch.setattr(ap, "CATALOG_FILE", str(path))
     import app_standalone as m
     monkeypatch.setattr(m, "CATALOG_FILE", str(path))

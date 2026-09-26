@@ -1,5 +1,5 @@
 账本: G:\claude code\data.json (255 条)
-知识库: p3_catalog_patched_tmp.json brands=22 parts=113 其中 cat 缺失或 unknown 的 part=0
+知识库: G:\claude code\catalog.json brands=22 parts=113 其中 cat 缺失或 unknown 的 part=0
 品类分布: {'board': 166, 'cooler': 25, 'ram': 25, 'ssd': 13, 'cpu': 12, 'bundle': 10, 'gpu': 2, 'unknown': 2}
 来源分布: {'part': 253, 'fallback': 2}
 
