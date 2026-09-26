@@ -1542,3 +1542,63 @@ bundle=10 / gpu=2 / unknown=2` 全中），另加一条永不烂的不变量
 `test_every_record_gets_a_legal_cat`：cat 必须落在 8 个键内，unknown 只允许
 `""` 和 `CPU针接触不良返场维修一次` 那两条。前者是一次性闸门，账本新增记录后要重新核对再改数字。
 全量测试：**239 passed**（Task 4 后 231 → 新增 8 条）。
+
+### 6. Task 6 落地时对正文四处做了修正
+
+1. **`reject_bad_cat` 新增与编辑两处都要挂**（正文 Step 3 只写了 `handle_add_record`）。
+   脏值不会只从新增进来，编辑表单同样能送 `cat`；少挂一处，那条路径就还是静默接受。
+   实际位置 `app_standalone.py:620`（add）、`:666`（update）。
+2. **成员判断必须先确认是字符串**。正文的 `value in VALID_CAT_KEYS` 遇到 `cat: []`
+   或 `cat: {}` 会让 `frozenset.__contains__` 抛 `TypeError`，连接直接断掉，
+   前端只剩一句没有原因的"保存失败"。改成
+   `value in ('', None) or (isinstance(value, str) and value in VALID_CAT_KEYS)`，
+   并配一条参数化用例 `test_both_cat_write_paths_reject_every_illegal_shape`
+   把 list/dict/int/中文/大小写错的 key 全过一遍。
+3. **三处重复的 `ORDER_CONTEXT_KEYS + (CAT_KEY,)` 提成 `LEDGER_META_KEYS`**（`:52`）。
+   正文让每条路径各写一遍加法表达式，四舍五入就是"以后加字段漏改一处"的现场；
+   一张表让三条路径共用，漏改在编译期就不可能发生。
+4. 正文引用的行号 `:46 / :596 / :638 / :710` 已漂到 `:52 / :633 / :677 / :749`。
+
+全量测试：239 → **249 passed**（新增 10 条，含上面那条参数化用例展开的 8 个 shape）。
+
+### 7. Task 7 按他的边界只做只读半部分
+
+他选的是"两个生产文件都不写、只出报告"，所以正文里 Step 3（catalog 真落盘）、
+Step 4（核 catalog 里 part 的 cat）、Step 6（`--apply` 写 data.json）**全部延后待授权**，
+本次只交付 Step 1/2/5/7：脚本 + 测试 + 报告 + 提交。
+
+为此脚本比正文多一个 `--catalog` 参数（默认才是仓库 `catalog.json`）。原因是硬约束：
+线上 `catalog.json` 的 121 条 part 此刻 `cat` 全是 `unknown`（补丁刻意还没应用），
+直接拿它跑报告就是 255 行 unknown，正文 Step 1 的 `assert all(r['cat'] …)` 会假绿。
+所以报告打在"线上库 + 补丁里 high 那部分"的临时副本上，副本由
+`tests/test_migrate_cat.py` 的 `patched_catalog` fixture 现拷现打，
+medium 的 3 条合并因为他还没批而排除在外。
+
+新增两条正文没有的用例，都是钉"不许动盘"这件事本身：
+`test_dry_run_touches_neither_production_file`（同时调两个 sha，dry-run 后必须原样）、
+`test_catalog_argument_is_the_file_the_report_is_built_from`（故意让两份库判定不同，
+报告必须跟着 `--catalog` 走，否则这参数是摆设）。全量测试：249 → **255 passed**。
+
+### 8. 报告的复现方式（`p3_catalog_patched_tmp.json` 是throwaway，已删）
+
+报告抬头写了它用的知识库路径，但那份副本当时落在仓库里、跑完就删了，所以那行路径
+现在指向不存在的文件。复现一次 dry-run 报告的完整命令（副本只写进系统临时目录，不进仓库）：
+
+```bash
+python -X utf8 -c "
+import json, os, shutil, tempfile
+import apply_catalog_patch as ap
+dst = os.path.join(tempfile.gettempdir(), 'p3_catalog_patched_tmp.json')
+shutil.copyfile('catalog.json', dst)
+real = json.load(open('p3_catalog_patch.json', encoding='utf-8'))
+ops = {k: real[k] for k in ('brand_renames', 'brand_aliases', 'part_cats')}
+ops['part_merges'] = [e for e in real['part_merges'] if e['confidence'] == 'high']
+ap.apply_patch(ops, catalog_file=dst)
+print(dst)"
+python -X utf8 migrate_add_cat.py --catalog "<上面打印的路径>" > p3_migration_report.txt
+```
+
+报告里的数字不依赖这份副本存活：`board=166 / cooler=25 / ram=25 / ssd=13 / cpu=12 /
+bundle=10 / gpu=2 / unknown=2` 已由 `SPEC3_RECORD_COUNTS` 钉在测试里（两处同源：
+`tests/test_apply_patch.py`、`tests/test_migrate_cat.py`），副本没了测试也会红，不会静默失真。
+Task 7 Step 6 执行完之后，报告改成直接 `python -X utf8 migrate_add_cat.py`（默认读线上库）。
