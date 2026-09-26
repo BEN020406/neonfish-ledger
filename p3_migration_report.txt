@@ -1,0 +1,267 @@
+账本: G:\claude code\data.json (255 条)
+知识库: p3_catalog_patched_tmp.json brands=22 parts=113 其中 cat 缺失或 unknown 的 part=0
+品类分布: {'board': 166, 'cooler': 25, 'ram': 25, 'ssd': 13, 'cpu': 12, 'bundle': 10, 'gpu': 2, 'unknown': 2}
+来源分布: {'part': 253, 'fallback': 2}
+
+下标    品牌       型号                                       cat      命中 part / 来源
+0     微星       H610m爆破弹                                 board    微星/H610m爆破弹
+1     微星       H610m爆破弹(12100F)                         bundle   微星/H610m爆破弹(12100F)
+2     微星       H610m爆破弹                                 board    微星/H610m爆破弹
+3     微星       H610m-E                                  board    微星/H610m-E
+4     微星       H610m-E(12400)                           bundle   微星/H610m-E(12400)
+5     微星       H610m-E                                  board    微星/H610m-E
+6     微星       H610m-E                                  board    微星/H610m-E
+7     微星       H610m-E                                  board    微星/H610m-E
+8     微星       H610m-E                                  board    微星/H610m-E
+9     微星       H610m-E                                  board    微星/H610m-E
+10    微星       H610m-E                                  board    微星/H610m-E
+11    微星       H610m-E                                  board    微星/H610m-E
+12    微星       H610m-E                                  board    微星/H610m-E
+13    微星       B660M-B                                  board    微星/B660M-B
+14    微星       B660M-G                                  board    微星/B660M-G
+15    微星       B660M-G                                  board    微星/B660M-G
+16    微星       B660M-G                                  board    微星/B660M-G
+17    微星       B660M-G                                  board    微星/B660M-G
+18    微星       B660m爆破弹                                 board    微星/B660m爆破弹
+19    微星       B660m迫击炮                                 board    微星/B660m迫击炮
+20    微星       B650mgaming wifi                         board    微星/B650mgaming wifi
+21    微星       B650mgaming wifi                         board    微星/B650mgaming wifi
+22    微星       B650mgaming wifi                         board    微星/B650mgaming wifi
+23    微星       B650mgaming wifi                         board    微星/B650mgaming wifi
+24    微星       B650mgaming wifi                         board    微星/B650mgaming wifi
+25    微星       B650mgaming wifi                         board    微星/B650mgaming wifi
+26    微星       B650mgaming plus wifi                    board    微星/B650mgaming plus wifi
+27    微星       B650mgaming plus wifi                    board    微星/B650mgaming plus wifi
+28    微星       B650mgaming plus wifi                    board    微星/B650mgaming plus wifi
+29    微星       B650mgaming plus wifi                    board    微星/B650mgaming plus wifi
+30    微星       B650mgaming plus wifi                    board    微星/B650mgaming plus wifi
+31    微星       B650m迫击炮                                 board    微星/B650m迫击炮
+32    微星       B650m迫击炮                                 board    微星/B650m迫击炮
+33    微星       B650m迫击炮wifi                             board    微星/B650m迫击炮wifi
+34    微星       B650m迫击炮wifi                             board    微星/B650m迫击炮wifi
+35    微星       B650m迫击炮wifi                             board    微星/B650m迫击炮wifi
+36    微星       B650m迫击炮wifi                             board    微星/B650m迫击炮wifi
+37    微星       B650m迫击炮wifi                             board    微星/B650m迫击炮wifi
+38    微星       B650m迫击炮wifi                             board    微星/B650m迫击炮wifi
+39    微星       B650carbonwifi                           board    微星/B650carbonwifi
+40    微星       B650战斧导弹                                 board    微星/B650战斧导弹
+41    微星       B760m-e                                  board    微星/B760m-e
+42    微星       B760m-a II DDR4 wifi                     board    微星/B760m-a II DDR4 wifi
+43    微星       B760m-e                                  board    微星/B760m-e
+44    微星       B760m-e                                  board    微星/B760m-e
+45    微星       B760m-e                                  board    微星/B760m-e
+46    微星       B760m-e                                  board    微星/B760m-e
+47    微星       B760m爆破弹(14600KF)                        bundle   微星/B760m爆破弹(14600KF)
+48    微星       B760m-e                                  board    微星/B760m-e
+49    微星       B760迫击炮                                  board    微星/B760迫击炮
+50    微星       B760gaming plus DDR4                     board    微星/B760gaming plus DDR4
+51    微星       Z790 pro p wifi DDR4                     board    微星/Z790 pro p wifi DDR4
+52    微星       Z790 pro p wifi DDR4                     board    微星/Z790 pro p wifi DDR4
+53    微星       B760gaming plus(14600KF)                 bundle   微星/B760gaming plus(14600KF)
+54    微星       Z790 edge wifi(14700KF)                  bundle   微星/Z790 edge wifi(14700KF)
+55    微星       Z790 gaming plus                         board    微星/Z790 gaming plus
+56    微星       B650m-b                                  board    微星/B650m-b
+57    微星       B650m-b                                  board    微星/B650m-b
+58    微星       B650m-b                                  board    微星/B650m-b
+59    微星       B650m-b                                  board    微星/B650m-b
+60    微星       B650m-b                                  board    微星/B650m-b
+61    微星       B650m-b                                  board    微星/B650m-b
+62    微星       B650m-b                                  board    微星/B650m-b
+63    微星       B650m-b                                  board    微星/B650m-b
+64    微星       B650m-b                                  board    微星/B650m-b
+65    微星       B650m-b(7500F)                           bundle   微星/B650m-b(7500F)
+66    微星       B650m-b                                  board    微星/B650m-b
+67    微星       B650m-b                                  board    微星/B650m-b
+68    微星       B650m-b                                  board    微星/B650m-b
+69    微星       B650m-b                                  board    微星/B650m-b
+70    微星       B650m-b                                  board    微星/B650m-b
+71    微星       B650m-b                                  board    微星/B650m-b
+72    微星       B650m-b                                  board    微星/B650m-b
+73    微星       B650m-b                                  board    微星/B650m-b
+74    微星       B650m-b                                  board    微星/B650m-b
+75    微星       B650m-b                                  board    微星/B650m-b
+76    微星       B650m-b                                  board    微星/B650m-b
+77    微星       B650m-b                                  board    微星/B650m-b
+78    微星       B650m-b                                  board    微星/B650m-b
+79    微星       B650m-b                                  board    微星/B650m-b
+80    微星       B650m-b                                  board    微星/B650m-b
+81    微星       B650m-b                                  board    微星/B650m-b
+82    微星       B650m-b                                  board    微星/B650m-b
+83    微星       B650m-b                                  board    微星/B650m-b
+84    微星       B650m-b                                  board    微星/B650m-b
+85    微星       B650m-b                                  board    微星/B650m-b
+86    微星       B650m-b                                  board    微星/B650m-b
+87    微星       B650m-b                                  board    微星/B650m-b
+88    微星       B650m-b                                  board    微星/B650m-b
+89    微星       B650m-b                                  board    微星/B650m-b
+90    微星       B650m-b                                  board    微星/B650m-b
+91    微星       B650m-b                                  board    微星/B650m-b
+92    微星       B650m-b                                  board    微星/B650m-b
+93    微星       B650m-b                                  board    微星/B650m-b
+94    微星       B650m-b                                  board    微星/B650m-b
+95    微星       B650m-e                                  board    微星/B650m-e
+96    微星       B650m-e                                  board    微星/B650m-e
+97    微星       B850gaming plus                          board    微星/B850gaming plus
+98    微星       B850迫击炮wifi(工包)                          board    微星/B850迫击炮wifi
+99    微星       B850迫击炮wifi                              board    微星/B850迫击炮wifi
+100   微星       B860gaming plus                          board    微星/B860gaming plus
+101   微星       B450m迫击炮                                 board    微星/B450m迫击炮
+102   微星       X99 carbon                               board    微星/X99 carbon
+103   技嘉       B450大雕                                   board    技嘉/B450大雕
+104   技嘉       B650m-k                                  board    技嘉/B650m-k
+105   技嘉       B650m gaming ac                          board    技嘉/B650m gaming ac
+106   技嘉       B650电竞雕                                  board    技嘉/B650电竞雕
+107   技嘉       B850冰雕                                   board    技嘉/B850冰雕
+108   技嘉       B850冰雕                                   board    技嘉/B850冰雕
+109   技嘉       B650m ds2                                board    技嘉/B650m ds2
+110   技嘉       X670小雕（9600X）                            bundle   技嘉/X670小雕（9600X）
+111   七彩虹      H610m                                    board    七彩虹/H610m
+112   七彩虹      B660 战斧                                  board    七彩虹/B660 战斧
+113   七彩虹      B550m-t                                  board    七彩虹/B550m-t
+114   七彩虹      B550m-t                                  board    七彩虹/B550m-t
+115   七彩虹      B550m-t                                  board    七彩虹/B550m-t
+116   七彩虹      B550m-t                                  board    七彩虹/B550m-t
+117   七彩虹      B550m-t                                  board    七彩虹/B550m-t
+118   七彩虹      B550m-t                                  board    七彩虹/B550m-t
+119   铭瑄       B760挑战者                                  board    铭瑄/B760挑战者
+120   铭瑄       B760挑战者wifi(12600KF)                     bundle   铭瑄/B760挑战者wifi(12600KF)
+121   铭瑄       B650挑战者                                  board    铭瑄/B650挑战者
+122   华硕       B450猛禽                                   board    华硕/B450猛禽
+123   华硕       X470prime a                              board    华硕/X470prime a
+124   华硕       H610m-k                                  board    华硕/H610m-k
+125   华硕       H610m-A                                  board    华硕/H610m-A
+126   华硕       H610m-A                                  board    华硕/H610m-A
+127   华硕       B650m tuf                                board    华硕/B650m tuf
+128   华硕       B650m tuf                                board    华硕/B650m tuf
+129   华硕       B650m-r                                  board    华硕/B650m-r
+130   华硕       B650m-k                                  board    华硕/B650m-k
+131   华硕       B760m-k                                  board    华硕/B760m-k
+132   华硕       B850 tuf                                 board    华硕/B850 tuf
+133   微星       liquid R360                              cooler   微星/liquid R360
+134   微星       liquid R360                              cooler   微星/liquid R360
+135   微星       liquid R360                              cooler   微星/liquid R360
+136   微星       liquid R360                              cooler   微星/liquid R360
+137   微星       liquid R360                              cooler   微星/liquid R360
+138   微星       liquid R360                              cooler   微星/liquid R360
+139   微星       liquid R360                              cooler   微星/liquid R360
+140   微星       liquid R360                              cooler   微星/liquid R360
+141   微星       liquid R360                              cooler   微星/liquid R360
+142   微星       liquid R360                              cooler   微星/liquid R360
+143   微星       liquid R360                              cooler   微星/liquid R360
+144   微星       liquid R360                              cooler   微星/liquid R360
+145   微星       liquid R360                              cooler   微星/liquid R360
+146   微星       liquid R360                              cooler   微星/liquid R360
+147   微星       liquid R360                              cooler   微星/liquid R360
+148   微星       liquid R360                              cooler   微星/liquid R360
+149   微星       liquid R360                              cooler   微星/liquid R360
+150   微星       liquid R360                              cooler   微星/liquid R360
+151   微星       liquid R360                              cooler   微星/liquid R360
+152   微星       liquid R360                              cooler   微星/liquid R360
+153   微星       liquid R360                              cooler   微星/liquid R360
+154   微星       liquid R360                              cooler   微星/liquid R360
+155   微星       liquid R360                              cooler   微星/liquid R360
+156   微星       liquid R360                              cooler   微星/liquid R360
+157   AMD      9700X                                    cpu      AMD/9700X
+158   AMD      7500F                                    cpu      AMD/7500F
+159   AMD      3700x                                    cpu      AMD/3700x
+160   AMD      5600x                                    cpu      AMD/5600x
+161   AMD      2700X                                    cpu      AMD/2700X
+162   AMD      5600x                                    cpu      AMD/5600x
+163   INTER    12100f                                   cpu      英特尔/12100f
+164   INTER    12400f                                   cpu      英特尔/12400f
+165   INTER    8600k                                    cpu      英特尔/8600k
+166                                                     unknown  fallback
+167   英睿达      镁光8G*2                                   ram      英睿达/镁光8G*2
+168   英睿达      镁光8G*2                                   ram      英睿达/镁光8G*2
+169   英睿达      镁光8G*2                                   ram      英睿达/镁光8G*2
+170   英睿达      镁光8G*2                                   ram      英睿达/镁光8G*2
+171   英睿达      镁光8G*2                                   ram      英睿达/镁光8G*2
+172   英睿达      镁光8G*2                                   ram      英睿达/镁光8G*2
+173   英睿达      镁光8G*2                                   ram      英睿达/镁光8G*2
+174   光威       长鑫 Adie 16G*2                            ram      光威/长鑫 Adie 16G*2
+175   光威       海力士 Mdie 24G*2                           ram      光威/海力士 Mdie 24G*2
+176   OLOY     镁光 Edie 16G*2                            ram      OLOY/镁光 Edie 16G*2
+177   OLOY     海力士 Adie 16G*2                           ram      OLOY/海力士 Adie 16G*2
+178   阿斯加特     长鑫 8G*2                                  ram      阿斯加特/长鑫 8G*2
+179   阿斯加特     海力士 Adie 16G*2                           ram      阿斯加特/海力士 Adie 16G*2
+180   芝奇       海力士 Adie 16G*2                           ram      芝奇/海力士 Adie 16G*2
+181   芝奇       海力士CJR8G*2                               ram      芝奇/海力士CJR8G*2
+182   玖合       海力士CJR16G*2                              ram      玖合/海力士CJR16G*2
+183   玖合       海力士CJR16G*2                              ram      玖合/海力士CJR16G*2
+184   玖合       海力士 Adie16G*2                            ram      玖合/海力士 Adie16G*2
+185   金百达      海力士CJR8G*2                               ram      金百达/海力士CJR8G*2
+186   金百达      海力士 Mdie 24G*2                           ram      金百达/海力士 Mdie 24G*2
+187   影驰       长鑫 8G                                    ram      影驰/长鑫 8G
+188   海盗船      三星 8G                                    ram      海盗船/三星 8G
+189   金士顿      海力士CJR 8G*2                              ram      金士顿/海力士CJR 8G*2
+190   佰维       海力士 Mdie 24G*2                           ram      佰维/海力士 Mdie 24G*2
+191   宏碁       海力士 Adie 16G*2                           ram      宏碁/海力士 Adie 16G*2
+192   凯侠       sd10 1t                                  ssd      铠侠/sd10 1t
+193   凯侠       sd10 1t                                  ssd      铠侠/sd10 1t
+194   凯侠       vd10 2t                                  ssd      铠侠/vd10 2t
+195   凯侠       sd10 2t                                  ssd      铠侠/sd10 2t
+196   凯侠       sd10 2t                                  ssd      铠侠/sd10 2t
+197   凯侠       sd10 2t                                  ssd      铠侠/sd10 2t
+198   凯侠       se10 2t                                  ssd      铠侠/se10 2t
+199   凯侠       rc20 1t                                  ssd      铠侠/rc20 1t
+200   西数       sn5000 2t                                ssd      西数/sn5000 2t
+201   金士顿      nv2 512g                                 ssd      金士顿/nv2 512g
+202   华硕       AS806 512g                               ssd      华硕/AS806 512g
+203   宏碁       gm7 1t                                   ssd      宏碁/gm7 1t
+204   宏碁       gm7000 1t                                ssd      宏碁/gm7000 1t
+205   七彩虹      Rtx5070 战斧                               gpu      七彩虹/Rtx5070 战斧
+206   微星       Rtx5070 魔龙                               gpu      微星/Rtx5070 魔龙
+207   微星       H610m-e                                  board    微星/H610m-E
+208   微星       H610m-e                                  board    微星/H610m-E
+209   INTER    12400f                                   cpu      英特尔/12400f
+210   微星       H610m-e                                  board    微星/H610m-E
+211   微星       H610m-e                                  board    微星/H610m-E
+212   微星       H610m-e                                  board    微星/H610m-E
+213   微星       H610m-s                                  board    微星/H610m-s
+214   微星       H610m-G                                  board    微星/H610m-G
+215   华硕       H610m-a                                  board    华硕/H610m-A
+216   微星       H610m-s                                  board    微星/H610m-s
+217   华硕       B850m TUF white wifi7                    board    华硕/B850m TUF white wifi7
+218   微星       B850M EDGE TI MAX                        board    微星/B850M EDGE TI MAX
+219   微星       X870e CARBON wifi                        board    微星/X870e CARBON wifi
+220   微星       B760M-A II DDR4                          board    微星/B760M-A II DDR4
+221   微星       B760M-A II DDR4                          board    微星/B760M-A II DDR4
+222   铭瑄       B760M 终结者D4                              board    铭瑄/B760M 终结者D4
+223   铭瑄       B760m 终结者 D4                             board    铭瑄/B760M 终结者D4
+224   铭瑄       B760m 终结者D4 wifi                         board    铭瑄/B760m 终结者D4 wifi
+225   INTER    12100f                                   cpu      英特尔/12100f
+226   INTER    14600kf                                  cpu      英特尔/14600kf
+227   华硕       B760m 天选ddr4 widi                        board    华硕/B760m 天选ddr4 widi
+228   微星       H610m-e                                  board    微星/H610m-E
+229   微星       B650m-b                                  board    微星/B650m-b
+230   微星       A620m-e                                  board    微星/A620m-e
+231   微星       B650m迫击炮wifi                             board    微星/B650m迫击炮wifi
+232   华硕       B650m-k                                  board    华硕/B650m-k
+233   微星       B650m迫击炮wifi                             board    微星/B650m迫击炮wifi
+234   微星       B650 gaming wifi                         board    微星/B650 gaming wifi
+235   铭瑄       B760m 终结者D4 wifi                         board    铭瑄/B760m 终结者D4 wifi
+236   铭瑄       B760m终结者D4 wifi                          board    铭瑄/B760m 终结者D4 wifi
+237   微星       b850mpower                               board    微星/b850mpower
+238   微星       PRO B650M-B 主板                           board    微星/B650m-b
+239   微星       pro h610m-s wifi ddr4拆机换下来的时             board    微星/H610m-s
+240   微星       b650m-b 爆破弹 带挡板                          board    微星/B650m-b
+241   华硕       PRIME B760M-P D4 R2.0                    board    华硕/PRIME B760M-P D4 R2.0
+242   微星       PRO H610M-E DDR4主板                       board    微星/H610m-E
+243            CPU针接触不良返场维修一次                           unknown  fallback
+244   七彩虹      BATTLE-AX B760M-G WIFI                   board    七彩虹/BATTLE-AX B760M-G WIFI
+245   微星       mag b650m mortar 针脚坏                     board    微星/mag b650m mortar 针脚坏
+246   铭瑄       B760M-D4终结者主板                            board    铭瑄/B760M 终结者D4
+247   华硕       PRIME B650M-K主板                          board    华硕/B650m-k
+248   微星       b650m gamingplus Wi-Fi主板 时好时             board    微星/B650mgaming plus wifi
+249   微星       PRO H610M-E DDR4主板                       board    微星/H610m-E
+250   英特尔      I512490F盒装搭配微星PRO H610M                  bundle   英特尔/I512490F盒装搭配微星PRO H610M
+251   微星       610h 12400f 板u套装                         bundle   微星/610h 12400f 板u套装
+252   微星       360水冷                                    cooler   微星/360水冷
+253   精粤       b760M 主板 安装cpu的时候掉下去了针脚砸坏了               board    精粤/b760M 主板 安装cpu的时候掉下去了针脚砸坏了
+254   微星       h610 坏板                                  board    微星/h610 坏板
+
+待确认(unknown) 2 条：
+  166   brand='' model='' 来源=fallback
+  243   brand='' model='CPU针接触不良返场维修一次' 来源=fallback
+
+（dry-run）data.json sha fd50d857c17f9f0f -> fd50d857c17f9f0f
