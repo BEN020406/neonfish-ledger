@@ -33,13 +33,16 @@ PATCH_FILE = os.path.join(ROOT, 'p3_catalog_patch.json')
 # 规格 §3 认可的那份记录级分布，与 tests/test_apply_patch.py 的
 # SPEC3_RECORD_COUNTS 同源。它是一次性迁移的验收闸门，账本每记一单就会漂，
 # 红了先重新核对规格 §3 再改数字，不许改数字去凑。
+# 2026-09-26 由 255/unknown=2 变成 254/unknown=1：删掉了那条 brand/model 全空、
+# cost 51554 / sell 88368 的记录，它逐分等于其余前 164 条的合计，是导入表格带进来
+# 的合计行（证据见 p3_audit_import_artifacts.txt），留着就是把那 164 单算两遍。
 SPEC3_RECORD_COUNTS = {'board': 166, 'cooler': 25, 'ram': 25, 'ssd': 13,
-                       'cpu': 12, 'bundle': 10, 'gpu': 2, 'unknown': 2}
+                       'cpu': 12, 'bundle': 10, 'gpu': 2, 'unknown': 1}
 LEGAL_CATS = set(SPEC3_RECORD_COUNTS)
-# unknown 允许剩的两条：一条品牌型号都空，一条 model 是维修备注不是型号。
+# unknown 只剩这一条：model 是维修备注，不是型号。原来一起列的品牌型号全空那条
+# 就是刚删掉的合计行 —— 下标会因为删单前移，所以下一次改动记得重核而不是照抄。
 KNOWN_UNRESOLVABLE = [
-    {'index': 166, 'brand': '', 'model': ''},
-    {'index': 243, 'brand': '', 'model': 'CPU针接触不良返场维修一次'},
+    {'index': 242, 'brand': '', 'model': 'CPU针接触不良返场维修一次'},
 ]
 
 
@@ -73,17 +76,17 @@ def patched_catalog(tmp_path, monkeypatch):
 
 
 def test_dry_run_report_covers_every_row(patched_catalog):
-    """255 行全覆盖，且每行的 cat 是真判出来的不是空壳。
+    """254 行全覆盖，且每行的 cat 是真判出来的不是空壳。
 
     这里刻意不写 all(r['cat'])：线上库 cat 全 unknown 时那句照样真，挡不住任何东西。
-    换成三层硬断言：分布等于规格 §3、unknown 只许是那两条已知残行、命中层必须是 part。
+    换成三层硬断言：分布等于规格 §3、unknown 只许是那条已知残行、命中层必须是 part。
     """
     rows = json.load(open(REAL_DATA_FILE, encoding='utf-8'))
     report = mg.build_report(rows, mg.load_catalog_json(patched_catalog))
-    assert len(rows) == 255 == sum(SPEC3_RECORD_COUNTS.values()), \
-        '账本已不是 255 条（现在 %d 条），先重新核对规格 §3 再改数字' % len(rows)
-    assert len(report) == 255
-    assert [r['index'] for r in report] == list(range(255)), '下标必须与 data.json 逐条对齐'
+    assert len(rows) == 254 == sum(SPEC3_RECORD_COUNTS.values()), \
+        '账本已不是 254 条（现在 %d 条），先重新核对规格 §3 再改数字' % len(rows)
+    assert len(report) == 254
+    assert [r['index'] for r in report] == list(range(254)), '下标必须与 data.json 逐条对齐'
     assert all(set(r) == {'index', 'brand', 'model', 'cat', 'part', 'source'}
                for r in report), '报告行字段不齐，复核的人没有依据可判'
     got = collections.Counter(r['cat'] for r in report)
@@ -91,13 +94,13 @@ def test_dry_run_report_covers_every_row(patched_catalog):
         '差异: %s' % {k: (got.get(k, 0), v) for k, v in SPEC3_RECORD_COUNTS.items()
                       if got.get(k, 0) != v}
     assert set(got) <= LEGAL_CATS, sorted(set(got) - LEGAL_CATS)
-    # 落 unknown 的只许那两条已知的残行，多一条就是判定层漏了东西。
+    # 落 unknown 的只许那条已知的残行，多一条就是判定层漏了东西。
     left = [{'index': r['index'], 'brand': r['brand'], 'model': r['model']}
             for r in report if r['cat'] == 'unknown']
     assert left == KNOWN_UNRESOLVABLE, left
-    # 253 条走 part 层（补丁后每条 part 都有 cat），只有那两条残行走 fallback。
+    # 253 条走 part 层（补丁后每条 part 都有 cat），只有那条维修备注走 fallback。
     sources = collections.Counter(r['source'] for r in report)
-    assert sources['part'] == 253 and sources['fallback'] == 2, dict(sources)
+    assert sources['part'] == 253 and sources['fallback'] == 1, dict(sources)
     assert all(r['part'] for r in report if r['source'] == 'part'), \
         '命中 part 的行必须记下命中的是谁，否则复核时看不出归并到没归并对'
 

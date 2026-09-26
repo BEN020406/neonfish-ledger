@@ -356,10 +356,16 @@ def test_rejects_part_cats_for_brand_that_never_exists(sandbox):
 
 # 规格 §3 认可的那份分布。它是一次性迁移的验收闸门，不是长期不变的性质：
 # 账本每记一单就会漂，红了先照下面的 message 重新核对规格，再改数字。
+# 2026-09-26 从 255/unknown=2 变成 254/unknown=1：删掉了 data.json 里那条
+# brand/model 全空、cost 51554 / sell 88368 的记录 —— 它逐分等于其余前 164 条的
+# 合计，是导入表格带进来的合计行（证据见 p3_audit_import_artifacts.txt），
+# 计进去就是把那 164 单的钱算两遍。
 SPEC3_RECORD_COUNTS = {"board": 166, "cooler": 25, "ram": 25, "ssd": 13,
-                       "cpu": 12, "bundle": 10, "gpu": 2, "unknown": 2}
-# unknown 允许剩的两条：一条品牌型号都空，一条 model 是维修备注不是型号。
-KNOWN_UNRESOLVABLE_MODELS = {"", "CPU针接触不良返场维修一次"}
+                       "cpu": 12, "bundle": 10, "gpu": 2, "unknown": 1}
+# unknown 现在只剩这一条：model 是维修备注，不是型号。
+# 原来还允许一个空 model —— 那条就是刚删掉的合计行，留着这条允许等于给
+# 「以后又粘进一行没有型号的脏东西」留后门，所以一起删掉。
+KNOWN_UNRESOLVABLE_MODELS = {"CPU针接触不良返场维修一次"}
 
 
 @pytest.fixture
@@ -388,7 +394,7 @@ def classify_all(patched_real_catalog):
 
 
 def test_every_record_gets_a_legal_cat(patched_real_catalog):
-    """补丁后每条记录都必须判得出合法品类，只允许那两条已知残行落 unknown。"""
+    """补丁后每条记录都必须判得出合法品类，只允许那条已知残行落 unknown。"""
     import app_standalone as m
     data, cats = classify_all(patched_real_catalog)
     assert set(cats) <= {c["key"] for c in m.CATALOG_CATEGORIES}, \

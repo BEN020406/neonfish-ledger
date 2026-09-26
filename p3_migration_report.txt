@@ -1,7 +1,7 @@
-账本: G:\claude code\data.json (255 条)
+账本: G:\claude code\data.json (254 条)
 知识库: G:\claude code\catalog.json brands=22 parts=110 其中 cat 缺失或 unknown 的 part=0
-品类分布: {'board': 166, 'cooler': 25, 'ram': 25, 'ssd': 13, 'cpu': 12, 'bundle': 10, 'gpu': 2, 'unknown': 2}
-来源分布: {'part': 253, 'fallback': 2}
+品类分布: {'board': 166, 'cooler': 25, 'ram': 25, 'ssd': 13, 'cpu': 12, 'bundle': 10, 'gpu': 2, 'unknown': 1}
+来源分布: {'part': 253, 'fallback': 1}
 
 下标    品牌       型号                                       cat      命中 part / 来源
 0     微星       H610m爆破弹                                 board    微星/H610m爆破弹
@@ -170,98 +170,96 @@
 163   INTER    12100f                                   cpu      英特尔/12100f
 164   INTER    12400f                                   cpu      英特尔/12400f
 165   INTER    8600k                                    cpu      英特尔/8600k
-166                                                     unknown  fallback
+166   英睿达      镁光8G*2                                   ram      英睿达/镁光8G*2
 167   英睿达      镁光8G*2                                   ram      英睿达/镁光8G*2
 168   英睿达      镁光8G*2                                   ram      英睿达/镁光8G*2
 169   英睿达      镁光8G*2                                   ram      英睿达/镁光8G*2
 170   英睿达      镁光8G*2                                   ram      英睿达/镁光8G*2
 171   英睿达      镁光8G*2                                   ram      英睿达/镁光8G*2
 172   英睿达      镁光8G*2                                   ram      英睿达/镁光8G*2
-173   英睿达      镁光8G*2                                   ram      英睿达/镁光8G*2
-174   光威       长鑫 Adie 16G*2                            ram      光威/长鑫 Adie 16G*2
-175   光威       海力士 Mdie 24G*2                           ram      光威/海力士 Mdie 24G*2
-176   OLOY     镁光 Edie 16G*2                            ram      OLOY/镁光 Edie 16G*2
-177   OLOY     海力士 Adie 16G*2                           ram      OLOY/海力士 Adie 16G*2
-178   阿斯加特     长鑫 8G*2                                  ram      阿斯加特/长鑫 8G*2
-179   阿斯加特     海力士 Adie 16G*2                           ram      阿斯加特/海力士 Adie 16G*2
-180   芝奇       海力士 Adie 16G*2                           ram      芝奇/海力士 Adie 16G*2
-181   芝奇       海力士CJR8G*2                               ram      芝奇/海力士CJR8G*2
+173   光威       长鑫 Adie 16G*2                            ram      光威/长鑫 Adie 16G*2
+174   光威       海力士 Mdie 24G*2                           ram      光威/海力士 Mdie 24G*2
+175   OLOY     镁光 Edie 16G*2                            ram      OLOY/镁光 Edie 16G*2
+176   OLOY     海力士 Adie 16G*2                           ram      OLOY/海力士 Adie 16G*2
+177   阿斯加特     长鑫 8G*2                                  ram      阿斯加特/长鑫 8G*2
+178   阿斯加特     海力士 Adie 16G*2                           ram      阿斯加特/海力士 Adie 16G*2
+179   芝奇       海力士 Adie 16G*2                           ram      芝奇/海力士 Adie 16G*2
+180   芝奇       海力士CJR8G*2                               ram      芝奇/海力士CJR8G*2
+181   玖合       海力士CJR16G*2                              ram      玖合/海力士CJR16G*2
 182   玖合       海力士CJR16G*2                              ram      玖合/海力士CJR16G*2
-183   玖合       海力士CJR16G*2                              ram      玖合/海力士CJR16G*2
-184   玖合       海力士 Adie16G*2                            ram      玖合/海力士 Adie16G*2
-185   金百达      海力士CJR8G*2                               ram      金百达/海力士CJR8G*2
-186   金百达      海力士 Mdie 24G*2                           ram      金百达/海力士 Mdie 24G*2
-187   影驰       长鑫 8G                                    ram      影驰/长鑫 8G
-188   海盗船      三星 8G                                    ram      海盗船/三星 8G
-189   金士顿      海力士CJR 8G*2                              ram      金士顿/海力士CJR 8G*2
-190   佰维       海力士 Mdie 24G*2                           ram      佰维/海力士 Mdie 24G*2
-191   宏碁       海力士 Adie 16G*2                           ram      宏碁/海力士 Adie 16G*2
+183   玖合       海力士 Adie16G*2                            ram      玖合/海力士 Adie16G*2
+184   金百达      海力士CJR8G*2                               ram      金百达/海力士CJR8G*2
+185   金百达      海力士 Mdie 24G*2                           ram      金百达/海力士 Mdie 24G*2
+186   影驰       长鑫 8G                                    ram      影驰/长鑫 8G
+187   海盗船      三星 8G                                    ram      海盗船/三星 8G
+188   金士顿      海力士CJR 8G*2                              ram      金士顿/海力士CJR 8G*2
+189   佰维       海力士 Mdie 24G*2                           ram      佰维/海力士 Mdie 24G*2
+190   宏碁       海力士 Adie 16G*2                           ram      宏碁/海力士 Adie 16G*2
+191   凯侠       sd10 1t                                  ssd      铠侠/sd10 1t
 192   凯侠       sd10 1t                                  ssd      铠侠/sd10 1t
-193   凯侠       sd10 1t                                  ssd      铠侠/sd10 1t
-194   凯侠       vd10 2t                                  ssd      铠侠/vd10 2t
+193   凯侠       vd10 2t                                  ssd      铠侠/vd10 2t
+194   凯侠       sd10 2t                                  ssd      铠侠/sd10 2t
 195   凯侠       sd10 2t                                  ssd      铠侠/sd10 2t
 196   凯侠       sd10 2t                                  ssd      铠侠/sd10 2t
-197   凯侠       sd10 2t                                  ssd      铠侠/sd10 2t
-198   凯侠       se10 2t                                  ssd      铠侠/se10 2t
-199   凯侠       rc20 1t                                  ssd      铠侠/rc20 1t
-200   西数       sn5000 2t                                ssd      西数/sn5000 2t
-201   金士顿      nv2 512g                                 ssd      金士顿/nv2 512g
-202   华硕       AS806 512g                               ssd      华硕/AS806 512g
-203   宏碁       gm7 1t                                   ssd      宏碁/gm7 1t
-204   宏碁       gm7000 1t                                ssd      宏碁/gm7000 1t
-205   七彩虹      Rtx5070 战斧                               gpu      七彩虹/Rtx5070 战斧
-206   微星       Rtx5070 魔龙                               gpu      微星/Rtx5070 魔龙
+197   凯侠       se10 2t                                  ssd      铠侠/se10 2t
+198   凯侠       rc20 1t                                  ssd      铠侠/rc20 1t
+199   西数       sn5000 2t                                ssd      西数/sn5000 2t
+200   金士顿      nv2 512g                                 ssd      金士顿/nv2 512g
+201   华硕       AS806 512g                               ssd      华硕/AS806 512g
+202   宏碁       gm7 1t                                   ssd      宏碁/gm7 1t
+203   宏碁       gm7000 1t                                ssd      宏碁/gm7000 1t
+204   七彩虹      Rtx5070 战斧                               gpu      七彩虹/Rtx5070 战斧
+205   微星       Rtx5070 魔龙                               gpu      微星/Rtx5070 魔龙
+206   微星       H610m-e                                  board    微星/H610m-E
 207   微星       H610m-e                                  board    微星/H610m-E
-208   微星       H610m-e                                  board    微星/H610m-E
-209   INTER    12400f                                   cpu      英特尔/12400f
+208   INTER    12400f                                   cpu      英特尔/12400f
+209   微星       H610m-e                                  board    微星/H610m-E
 210   微星       H610m-e                                  board    微星/H610m-E
 211   微星       H610m-e                                  board    微星/H610m-E
-212   微星       H610m-e                                  board    微星/H610m-E
-213   微星       H610m-s                                  board    微星/H610m-s
-214   微星       H610m-G                                  board    微星/H610m-G
-215   华硕       H610m-a                                  board    华硕/H610m-A
-216   微星       H610m-s                                  board    微星/H610m-s
-217   华硕       B850m TUF white wifi7                    board    华硕/B850m TUF white wifi7
-218   微星       B850M EDGE TI MAX                        board    微星/B850M EDGE TI MAX
-219   微星       X870e CARBON wifi                        board    微星/X870e CARBON wifi
+212   微星       H610m-s                                  board    微星/H610m-s
+213   微星       H610m-G                                  board    微星/H610m-G
+214   华硕       H610m-a                                  board    华硕/H610m-A
+215   微星       H610m-s                                  board    微星/H610m-s
+216   华硕       B850m TUF white wifi7                    board    华硕/B850m TUF white wifi7
+217   微星       B850M EDGE TI MAX                        board    微星/B850M EDGE TI MAX
+218   微星       X870e CARBON wifi                        board    微星/X870e CARBON wifi
+219   微星       B760M-A II DDR4                          board    微星/B760M-A II DDR4
 220   微星       B760M-A II DDR4                          board    微星/B760M-A II DDR4
-221   微星       B760M-A II DDR4                          board    微星/B760M-A II DDR4
-222   铭瑄       B760M 终结者D4                              board    铭瑄/B760M 终结者D4
-223   铭瑄       B760m 终结者 D4                             board    铭瑄/B760M 终结者D4
-224   铭瑄       B760m 终结者D4 wifi                         board    铭瑄/B760m 终结者D4 wifi
-225   INTER    12100f                                   cpu      英特尔/12100f
-226   INTER    14600kf                                  cpu      英特尔/14600kf
-227   华硕       B760m 天选ddr4 widi                        board    华硕/B760m 天选ddr4 widi
-228   微星       H610m-e                                  board    微星/H610m-E
-229   微星       B650m-b                                  board    微星/B650m-b
-230   微星       A620m-e                                  board    微星/A620m-e
-231   微星       B650m迫击炮wifi                             board    微星/B650m迫击炮wifi
-232   华硕       B650m-k                                  board    华硕/B650m-k
-233   微星       B650m迫击炮wifi                             board    微星/B650m迫击炮wifi
-234   微星       B650 gaming wifi                         board    微星/B650mgaming wifi
-235   铭瑄       B760m 终结者D4 wifi                         board    铭瑄/B760m 终结者D4 wifi
-236   铭瑄       B760m终结者D4 wifi                          board    铭瑄/B760m 终结者D4 wifi
-237   微星       b850mpower                               board    微星/b850mpower
-238   微星       PRO B650M-B 主板                           board    微星/B650m-b
-239   微星       pro h610m-s wifi ddr4拆机换下来的时             board    微星/H610m-s
-240   微星       b650m-b 爆破弹 带挡板                          board    微星/B650m-b
-241   华硕       PRIME B760M-P D4 R2.0                    board    华硕/PRIME B760M-P D4 R2.0
-242   微星       PRO H610M-E DDR4主板                       board    微星/H610m-E
-243            CPU针接触不良返场维修一次                           unknown  fallback
-244   七彩虹      BATTLE-AX B760M-G WIFI                   board    七彩虹/BATTLE-AX B760M-G WIFI
-245   微星       mag b650m mortar 针脚坏                     board    微星/B650m迫击炮wifi
-246   铭瑄       B760M-D4终结者主板                            board    铭瑄/B760M 终结者D4
-247   华硕       PRIME B650M-K主板                          board    华硕/B650m-k
-248   微星       b650m gamingplus Wi-Fi主板 时好时             board    微星/B650mgaming plus wifi
-249   微星       PRO H610M-E DDR4主板                       board    微星/H610m-E
-250   英特尔      I512490F盒装搭配微星PRO H610M                  bundle   英特尔/I512490F盒装搭配微星PRO H610M
-251   微星       610h 12400f 板u套装                         bundle   微星/610h 12400f 板u套装
-252   微星       360水冷                                    cooler   微星/liquid R360
-253   精粤       b760M 主板 安装cpu的时候掉下去了针脚砸坏了               board    精粤/b760M 主板 安装cpu的时候掉下去了针脚砸坏了
-254   微星       h610 坏板                                  board    微星/h610 坏板
+221   铭瑄       B760M 终结者D4                              board    铭瑄/B760M 终结者D4
+222   铭瑄       B760m 终结者 D4                             board    铭瑄/B760M 终结者D4
+223   铭瑄       B760m 终结者D4 wifi                         board    铭瑄/B760m 终结者D4 wifi
+224   INTER    12100f                                   cpu      英特尔/12100f
+225   INTER    14600kf                                  cpu      英特尔/14600kf
+226   华硕       B760m 天选ddr4 widi                        board    华硕/B760m 天选ddr4 widi
+227   微星       H610m-e                                  board    微星/H610m-E
+228   微星       B650m-b                                  board    微星/B650m-b
+229   微星       A620m-e                                  board    微星/A620m-e
+230   微星       B650m迫击炮wifi                             board    微星/B650m迫击炮wifi
+231   华硕       B650m-k                                  board    华硕/B650m-k
+232   微星       B650m迫击炮wifi                             board    微星/B650m迫击炮wifi
+233   微星       B650 gaming wifi                         board    微星/B650mgaming wifi
+234   铭瑄       B760m 终结者D4 wifi                         board    铭瑄/B760m 终结者D4 wifi
+235   铭瑄       B760m终结者D4 wifi                          board    铭瑄/B760m 终结者D4 wifi
+236   微星       b850mpower                               board    微星/b850mpower
+237   微星       PRO B650M-B 主板                           board    微星/B650m-b
+238   微星       pro h610m-s wifi ddr4拆机换下来的时             board    微星/H610m-s
+239   微星       b650m-b 爆破弹 带挡板                          board    微星/B650m-b
+240   华硕       PRIME B760M-P D4 R2.0                    board    华硕/PRIME B760M-P D4 R2.0
+241   微星       PRO H610M-E DDR4主板                       board    微星/H610m-E
+242            CPU针接触不良返场维修一次                           unknown  fallback
+243   七彩虹      BATTLE-AX B760M-G WIFI                   board    七彩虹/BATTLE-AX B760M-G WIFI
+244   微星       mag b650m mortar 针脚坏                     board    微星/B650m迫击炮wifi
+245   铭瑄       B760M-D4终结者主板                            board    铭瑄/B760M 终结者D4
+246   华硕       PRIME B650M-K主板                          board    华硕/B650m-k
+247   微星       b650m gamingplus Wi-Fi主板 时好时             board    微星/B650mgaming plus wifi
+248   微星       PRO H610M-E DDR4主板                       board    微星/H610m-E
+249   英特尔      I512490F盒装搭配微星PRO H610M                  bundle   英特尔/I512490F盒装搭配微星PRO H610M
+250   微星       610h 12400f 板u套装                         bundle   微星/610h 12400f 板u套装
+251   微星       360水冷                                    cooler   微星/liquid R360
+252   精粤       b760M 主板 安装cpu的时候掉下去了针脚砸坏了               board    精粤/b760M 主板 安装cpu的时候掉下去了针脚砸坏了
+253   微星       h610 坏板                                  board    微星/h610 坏板
 
-待确认(unknown) 2 条：
-  166   brand='' model='' 来源=fallback
-  243   brand='' model='CPU针接触不良返场维修一次' 来源=fallback
+待确认(unknown) 1 条：
+  242   brand='' model='CPU针接触不良返场维修一次' 来源=fallback
 
-（dry-run）data.json sha 06b0bfe5737ca655 -> 06b0bfe5737ca655
+（dry-run）data.json sha fc062a6ca9f88fad -> fc062a6ca9f88fad

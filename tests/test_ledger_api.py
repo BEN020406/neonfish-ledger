@@ -1395,7 +1395,7 @@ def test_split_local_validation_blocks_one_row_and_blank_parts():
 def test_split_paid_delta_stays_hidden_without_order_paid():
     """拿不到 order_paid 时"订单实付 / 差额"整段不显示。
 
-    真实账本 255 条里一条 order_paid 都没有（那是后续任务才补的），
+    真实账本 254 条里一条 order_paid 都没有（那是后续任务才补的），
     这段要是照抄公式就会长期挂着 ¥NaN / ¥undefined，或者谎报"差额 = -合计"。
     """
     src = _index_js()
@@ -1586,7 +1586,7 @@ def test_both_cat_write_paths_reject_every_illegal_shape(api, bad):
 # ─── P3 Task 8：前端品类维度（品类列 / 「品类待确认」/ 行内改判）───
 # 沿用本文件既有的源码静态扫描写法（_index_js / _top_level_fn）。
 # 判定口径那一条另外配一例真跑 JS 的行为用例：计划正文写的 `if (i.cat) return false`
-# 在「255 条全带 cat、未判定的是字面量 unknown」这份账本上是恒假 —— 入口做成死的，
+# 在「254 条全带 cat、未判定的是字面量 unknown」这份账本上是恒假 —— 入口做成死的，
 # 光看文本断言看不出来，所以把它交给 node 跑一遍。
 
 def _js_with_node():
