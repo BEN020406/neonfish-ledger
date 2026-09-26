@@ -1424,6 +1424,25 @@ function templateOptions(records, resolveB, resolveM) {
     .sort((a, b) => b.count - a.count);
 }
 
+function priceStats(records, brand, model, resolveB, resolveM) {
+  const key = partKey(resolveB(brand), resolveM(brand, model));
+  const sells = [];
+  (records || []).forEach(r => {
+    const b = resolveB((r || {}).brand);
+    if (partKey(b, resolveM((r || {}).brand, (r || {}).model)) !== key) return;
+    const v = parseFloat((r || {}).sell);
+    // 空售价/非数字/0 一律不进统计：一个 NaN 就会把 min/max/均价全传染成 NaN。
+    if (isFinite(v) && v > 0) sells.push(v);
+  });
+  if (!sells.length) return { count: 0, sell_min: 0, sell_max: 0, sell_avg: 0 };
+  return {
+    count: sells.length,
+    sell_min: Math.min.apply(null, sells),
+    sell_max: Math.max.apply(null, sells),
+    sell_avg: sells.reduce((sum, v) => sum + v, 0) / sells.length,
+  };
+}
+
 function filterCombo(cands, query) {
   const q = normKey(query);
   if (!q) return (cands || []).slice();
@@ -1597,7 +1616,7 @@ attachCombo(document.getElementById('fTemplate'),
     document.getElementById('fModel').value = model;
     document.getElementById('fTemplate').value = c.text;
     document.getElementById('fCost').focus();
-    fetchPriceHint(brand, model);
+    showPriceHint(brand, model);
   },
   true);
 
@@ -2631,27 +2650,23 @@ document.getElementById('fModel').addEventListener('input', () => {
   document.getElementById('fTemplate').value = '';
   const brand = document.getElementById('fBrand').value.trim();
   const model = document.getElementById('fModel').value.trim();
-  fetchPriceHint(brand, model);
+  showPriceHint(brand, model);
 });
 
-let priceDebounceTimer = null;
-function fetchPriceHint(brand, model) {
+// 参考价改成从 items 同步现算：数据本来就在内存里。原来那 500ms 防抖是为了不刷爆后端，
+// 现在留着只会让提示白等半秒，所以连计时器一起去掉，函数名也不再叫 fetch。
+function showPriceHint(brand, model) {
   const hint = document.getElementById('priceHint');
   if (!brand || !model) { hint.style.display = 'none'; return; }
-  clearTimeout(priceDebounceTimer);
-  priceDebounceTimer = setTimeout(async () => {
-    try {
-      const res = await fetch(`/api/prices?brand=${encodeURIComponent(brand)}&model=${encodeURIComponent(model)}`);
-      const data = await res.json();
-      if (data.count > 0) {
-        hint.innerHTML = `参考售价: ¥${data.sell_min|0}-${data.sell_max|0} | 均价 ¥${(data.sell_avg||0)|0} <span style="opacity:0.6">(${data.count}笔)</span>`;
-        hint.style.cssText = 'display:block;color:var(--cyan);background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.2);text-shadow:0 0 8px rgba(0,229,255,0.3)';
-      } else {
-        hint.textContent = '暂无历史数据';
-        hint.style.cssText = 'display:block;color:var(--muted);background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);text-shadow:none';
-      }
-    } catch (e) { hint.style.display = 'none'; }
-  }, 500);
+  const stat = priceStats(items, brand, model, resolveBrand,
+    (b, m) => (resolvePart(b, m) || {}).name || String(m || '').trim());
+  if (!stat.count) {
+    hint.textContent = '暂无历史数据';
+    hint.style.cssText = 'display:block;color:var(--muted);background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);text-shadow:none';
+    return;
+  }
+  hint.innerHTML = `参考售价: ¥${stat.sell_min|0}-${stat.sell_max|0} | 均价 ¥${stat.sell_avg|0} <span style="opacity:0.6">(${stat.count}笔)</span>`;
+  hint.style.cssText = 'display:block;color:var(--cyan);background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.2);text-shadow:0 0 8px rgba(0,229,255,0.3)';
 }
 
 // ─── LOGO UPLOAD ───────────────────────

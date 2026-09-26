@@ -1979,6 +1979,61 @@ def test_template_candidates_no_longer_depend_on_the_dead_endpoint():
         assert dead not in src, "还留着 %s，模板数据源没换干净" % (dead,)
 
 
+def _price_stats(records, brand, model, brand_map, model_map):
+    src = _index_js()
+    parts = [
+        _top_level_fn(src, "function normKey(text) {"),
+        _top_level_fn(src, "function partKey(brand, key) {"),
+        _top_level_fn(src, "function priceStats(records, brand, model, resolveB, resolveM) {"),
+        "const RB = %s;\n" % json.dumps(brand_map, ensure_ascii=False),
+        "const RM = %s;\n" % json.dumps(model_map, ensure_ascii=False),
+        "const rb = b => RB[b] || b;\n",
+        "const rm = (b, m) => RM[String(m).toUpperCase()] || m;\n",
+        "process.stdout.write(JSON.stringify(priceStats(%s, %s, %s, rb, rm)));\n"
+        % (json.dumps(records, ensure_ascii=False),
+           json.dumps(brand, ensure_ascii=False),
+           json.dumps(model, ensure_ascii=False)),
+    ]
+    return _run_node("".join(parts))
+
+
+def test_price_stats_aggregates_the_same_config_across_brand_spellings():
+    """参考价取同组记录全量历史的 min/max/均价（他 2026-09-26 定的口径）。
+
+    键必须走归一：账本里 MSI 与 微星 是同一牌子的两种写法，只按原值比就会漏掉一半笔数；
+    但同型号串挂在两个品牌下是两台机器，绝不能混进同一个价区。
+    空售价、非数字、0 都不能进统计 —— 否则 Math.min 会被 NaN 传染成整条提示空白。
+    """
+    assert "function priceStats(" in _index_js(), "priceStats 还不存在"
+    records = [{"brand": "MSI", "model": "B650M-B", "sell": "330"},
+               {"brand": "微星", "model": "B650M-B", "sell": 270},
+               {"brand": "微星", "model": "B650M-B", "sell": "470"},
+               {"brand": "微星", "model": "B650M-B", "sell": ""},
+               {"brand": "微星", "model": "B650M-B", "sell": None},
+               {"brand": "微星", "model": "B650M-B", "sell": "0"},
+               {"brand": "微星", "model": "B650M-B", "sell": "待议价"},
+               {"brand": "技嘉", "model": "B650M-B", "sell": "9999"},
+               {"brand": "微星", "model": "B760M-E", "sell": "888"}]
+    got = _price_stats(records, "微星", "b650m-b", {"MSI": "微星"}, {})
+    assert got == {"count": 3, "sell_min": 270, "sell_max": 470, "sell_avg": 1070.0 / 3}, \
+        "实到 %s" % (got,)
+    none = _price_stats(records, "微星", "Z990-NOTHING", {"MSI": "微星"}, {})
+    assert none == {"count": 0, "sell_min": 0, "sell_max": 0, "sell_avg": 0}, \
+        "无匹配时 count 没归零，提示会错报成 ¥0-0 而不是「暂无历史数据」"
+
+
+def test_price_hint_no_longer_fetches_the_dead_endpoint():
+    """参考价改成前端现算后，那个后端不存在的路由和它的防抖计时器都该消失。
+
+    /api/prices 在 app_standalone.py 里从来没实现过，fetch 到 404 后落进 catch 把提示
+    直接隐藏，所以这个功能自始至终没显示过任何东西（后端日志里全是逐键触发的 404）。
+    数据源换成内存里的 items 之后，请求是同步的，500ms 防抖只是让提示白等半秒。
+    """
+    src = _index_js()
+    for dead in ("api/prices", "priceDebounceTimer"):
+        assert dead not in src, "还留着 %s，参考价数据源没换干净" % (dead,)
+
+
 def _filter_combo(cands, query):
     js = (
         _top_level_fn(_index_js(), "function normKey(text) {") + "\n"
