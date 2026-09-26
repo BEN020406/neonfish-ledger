@@ -1647,3 +1647,24 @@ python -X utf8 apply_catalog_patch.py --patch \"$TEMP/p3_catalog_patch_high_only
 窗口刷新即可读到新库 —— 已用 `GET /api/catalog` 实测返回 brands=22。
 
 全量测试：**256 passed**。
+
+### 10. Task 7 Step 6 已执行（2026-09-26）：data.json 补上 cat
+
+`python -X utf8 migrate_add_cat.py --apply`（提交 `e26beb0`），255 条记录全部带上 `cat`，
+分布与报告一致。脚本自己的三重断言之外，我另外拿 `git show HEAD:data.json` 独立比对过：
+**255 条键集合恰好只多出 `cat`，其余字段零改动**，`cat` 一律落在 8 个合法 key 内、
+追加在每条末尾，无 `.tmp` 残留。`GET /api/data` 侧再核一遍：255/255 含 cat、分布一致。
+全量测试 **256 passed**（迁移前后同一个数，说明 Task 6 的三条写路径确实保住了这个字段）。
+
+**写盘前的检查点不是"再提交一次 data.json"**：`data.json` 本来就干净且已在 `45a13c8` 里，
+为一个未改动的文件提交只会得到空提交。核验方式是比 `HEAD:data.json` 与工作树的 sha ——
+这里出现了一个必须解释清楚的差异：`git status` 报干净，但两个 sha 不同。
+原因是 `.gitattributes` 的 `*.json text eol=lf`：磁盘上是 CRLF（`save_data` 用文本模式写），
+blob 里是 LF，clean 过滤后归一化才相等。已验证 `blob.replace(LF→CRLF) == 工作树` 逐字节成立、
+解析后 255 条对象全等，所以回退点是真的。**结论：判断 data.json 有没有回退点，
+不能只看 `sha256sum` 和 `git show` 的字节是否相同，要么用 `git status`，要么比解析后的对象。**
+回退：`git checkout HEAD~1 -- data.json`（落库后 git 会写成 LF；账本解析 JSON 不介意行尾，
+下一次应用保存会自动恢复成 CRLF）。
+
+**§12 P3 验收达成**：255 条都有 cat，unknown 是他认可的两条残行（下标 166、243）。
+Task 7 至此全部做完；剩下的只有 Task 8（前端品类列 + 「品类待确认 N」）和 Task 9（重启验证）。
