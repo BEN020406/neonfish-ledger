@@ -228,7 +228,7 @@ CREATE TABLE IF NOT EXISTS xianyu_orders (
 
 _PENDING_COLS = ("order_id, item_title, price, trade_type, "
                  "counterparty, order_status, order_date")
-_NEWEST_FIRST = " ORDER BY order_date IS NULL, order_date DESC, id DESC"
+NEWEST_FIRST = " ORDER BY order_date DESC, id DESC"
 
 
 def connect(path=None):
@@ -296,14 +296,14 @@ def insert_orders(conn, orders):
 
 
 def fetch_orders(conn):
-    rows = conn.execute("SELECT %s FROM xianyu_orders%s" % (_PENDING_COLS, _NEWEST_FIRST)).fetchall()
+    rows = conn.execute("SELECT %s FROM xianyu_orders%s" % (_PENDING_COLS, NEWEST_FIRST)).fetchall()
     return [dict(r) for r in rows]
 
 
 def fetch_orders_full(conn):
     """迁移校验专用：连 images / raw_data 一起读回，JSON 列解成对象。"""
     cols = ", ".join(COLS)
-    rows = conn.execute("SELECT %s FROM xianyu_orders%s" % (cols, _NEWEST_FIRST)).fetchall()
+    rows = conn.execute("SELECT %s FROM xianyu_orders%s" % (cols, NEWEST_FIRST)).fetchall()
     out = []
     for r in rows:
         d = dict(r)
@@ -446,7 +446,7 @@ import sys
 
 import orders_db
 
-_SELECT = "SELECT %s FROM xianyu_orders%s" % (", ".join(orders_db.COLS), orders_db._NEWEST_FIRST)
+_SELECT = "SELECT %s FROM xianyu_orders%s" % (", ".join(orders_db.COLS), orders_db.NEWEST_FIRST)
 
 
 def compare_rows(src_rows, dst_rows):
@@ -1649,3 +1649,17 @@ python -X utf8 xianyu_review.py --dry-run
 Expected 三件：全量只剩 4 条既有漂移探针红；体检表四行无 FAIL（后端没起时台账行 skip 属正常）；填单台 dry-run 读出 31 单并拆出品牌型号。
 
 把这四行体检表原文贴给他，并明确说清没测到的部分：真抓单（`xianyu_scraper.py`）要扫码登录，本计划没跑通在线抓取，只验了落库与读取。
+
+---
+
+## 执行期勘误（Task 1-2 实测后回写，代码为准）
+
+| 计划原文 | 实际落地 | 依据 |
+| --- | --- | --- |
+| `_NEWEST_FIRST = " ORDER BY order_date IS NULL, order_date DESC, id DESC"` | `NEWEST_FIRST = " ORDER BY order_date DESC, id DESC"` | 实测 SQLite（与 MySQL 一样）在 `DESC` 下本就把 NULL 排最后，那个前置项不可观测＝死代码；改名是因为迁移模块要跨模块读它 |
+| `insert_orders` 出错时不回滚 | 整批 `try/except sqlite3.Error: conn.rollback(); raise` | 不回滚时半途的行会留在未结束的事务里，被下一次无关批次一起提交（已实测） |
+| `test_images_and_raw_data_survive_as_objects` 用 `fetch_orders` | 改用 `fetch_orders_full` | `fetch_orders` 只出 7 个遗留列，按计划写必然假绿 |
+| Task 2 只有 `compare_rows` + `rows_from_mysql` | 增加 `prepare_row`，`--from-mysql` 路径先规整类型 | MySQL 的 `DECIMAL` 回来是 Decimal，sqlite3 拒绝绑定；两个 JSON 列回来是文本，存储层再 dumps 成双重编码，读回来是字符串。四条比对断言看不出这件事（源值与目标值字面相同），真正的护栏是一次真实 SQLite 往返测试 |
+| 提交信息里 `18 passed` | Task 2 完成时该两文件 `27 passed` | Task 1 评审补了 2 条测试、Task 2 补丁补了 7 条 |
+
+**给 Task 3 的提醒：** `orders.db` 里的 `images` / `raw_data` 经 `fetch_orders_full` 才是对象；`fetch_orders` 那 7 列里没有它们。任何绕开 `prepare_row` 直接写库的路径都会重现双重编码。
