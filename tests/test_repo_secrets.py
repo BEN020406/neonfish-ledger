@@ -34,6 +34,10 @@ MUST_BE_TRACKED = [
     "xianyu_scraper.py",      # 闲鱼抓单
     "xianyu_review.py",
     "xianyu_review.html",
+    "orders_db.py",             # 抓单存储层，缺它两个脚本都起不来
+    "selfcheck.py",             # 体检表
+    "installer.py",             # 装机步骤
+    "setup.bat",                # 双击入口
 ]
 
 # 换成 SQLite 后就不该存在的东西。含 import_to_mysql.py：它从未被跟踪，
