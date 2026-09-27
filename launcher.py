@@ -254,7 +254,7 @@ def draw_status_card():
 
     items = [
         ("抓取引擎", "Playwright + Chromium"),
-        ("数据存储", "MySQL neon_ledger"),
+        ("数据存储", "本地 orders.db"),
         ("目标平台", "goofish.com"),
     ]
     for i, (label, value) in enumerate(items):

@@ -1,4 +1,4 @@
-"""抓单落地库：一个本地 SQLite 文件，替代原先的 MySQL neon_ledger.xianyu_orders。
+"""抓单落地库：一个本地 SQLite 文件，替代原先放在外部数据库里的那张 xianyu_orders 表。
 
 列名与原表逐一对齐，读取侧与历史数据都不用改。有意保留三处与 MySQL 的差别：
 - order_id 用 TEXT UNIQUE 且允许 NULL：SQLite 与 InnoDB 都把 NULL 视为互不相等，

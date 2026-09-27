@@ -8,7 +8,7 @@
 记账本身与品类无关，卖书、卖球鞋、卖化妆品一样能用（差别见「能记哪些货」一节）。
 
 ```
-闲鱼(goofish) ──xianyu_scraper.py──▶ MySQL neon_ledger.xianyu_orders
+闲鱼(goofish) ──xianyu_scraper.py──▶ orders.db（本地 SQLite，抓到的订单原文）
                                           │
                                    xianyu_review.py  (勾选/拆标题/改品牌型号成本)
                                           ▼
@@ -18,10 +18,11 @@
 
 | 组件 | 入口 | 干什么 |
 | --- | --- | --- |
+| 一键装机 | 双击 `setup.bat` | 拉起 `installer.py`：查 Python 版本 → 建 `.venv` → 装依赖 → 下 Chromium → 交给 `selfcheck.py` 出体检表 |
 | 霓虹鱼启动器 | `python launcher.py` | tkinter 手绘的霓虹风格启动面板，三个按钮分别拉起下面两个脚本和台账窗口 |
 | NO_object丰收 台账 | `python app_standalone.py` | stdlib `http.server` + pywebview 原生窗口，记进价/卖价/配件费，看利润、周转和品牌型号分布 |
-| 闲鱼抓单 | `python xianyu_scraper.py` | Playwright 自动登录并翻页抓「我买到的」订单，落 MySQL |
-| 闲鱼数据填入 | `python xianyu_review.py` | 按日期分组核对抓到的订单，拆分标题里的品牌/型号/成色，写入 `data.json` |
+| 闲鱼抓单 | `python xianyu_scraper.py` | Playwright 自动登录并翻页抓「我买到的」订单，写进本地 `orders.db` |
+| 闲鱼数据填入 | `python xianyu_review.py` | 读 `orders.db`，按日期分组核对抓到的订单，拆分标题里的品牌/型号/成色，写入 `data.json` |
 
 ## 能记哪些货
 
@@ -40,34 +41,44 @@
 ## 环境
 
 - Windows（台账与填入台用 pywebview 起原生窗口，只在 Windows 上跑过）
-- Python 3.13（tkinter 需随解释器装好）
-- MySQL 8，本地一个 `neon_ledger` 库即可，表 `xianyu_orders` 由抓单脚本自己建
+- Python 3.10 以上（`installer.py` 硬性检查这一点；作者本机 3.13，tkinter 要随解释器一起装好）
+- 不需要 MySQL 或任何数据库服务：抓单落地就是本目录一个 `orders.db` 文件
 
 ```bat
-python -m venv .venv && .venv\Scripts\activate
-pip install -r requirements.txt
-playwright install chromium
+:: 第一次用：双击 setup.bat，它查版本、建 .venv、装依赖、下 Chromium，最后出一张体检表
+:: 已经装过再跑，已完成的步骤会自动跳过
 ```
 
-## 配 MySQL 口令
-
-代码里不留明文口令：真口令放本机未跟踪的 `db_secret.py`，仓库里只有模板。
+同一件事的命令行版本，以及"只告诉我会做哪几步、一条命令都不执行"的版本：
 
 ```bat
-copy db_secret.example.py db_secret.py
-:: 然后编辑 db_secret.py 里的 DB_CONF
+python -X utf8 installer.py
+python -X utf8 installer.py --dry-run
 ```
 
-不想建文件也可以走环境变量：`XIANYU_DB_PASSWORD`（可选 `XIANYU_DB_HOST` /
-`XIANYU_DB_PORT` / `XIANYU_DB_USER` / `XIANYU_DB_NAME`）。两处都没有时
-`db_config.py` 会直接报错说明缺什么，不会静默回落到某个默认口令。
+Chromium 是整条流程里唯一要联网的大件（`installer.py` 的 `browser` 步），失败基本是网络/代理问题；
+只记账不抓单的话，这一步可以不管。装完的东西全在本目录 `.venv` 里，
+`installer.py` 不写系统 Python，也不碰任何数据文件。
 
-`tests/test_repo_secrets.py` 是这道门：既断言三个组件真的在版本控制里（否则扫口令是空转），
-也扫全部入库文件里的明文口令赋值，还会拿本机 `db_secret.py` 的真实口令当探针反查全仓。
+## 装什么、不装什么
+
+抓单落地的存储现在是一个本地文件 `orders.db`（SQLite），**不再需要 MySQL 服务**。
+原先那套 MySQL 的配置层、驱动依赖和口令模板一起退场了，所以装机流程里没有
+"先配数据库口令"这一步 —— `requirements.txt` 里只剩 playwright / pywebview / requests / pillow。
+
+只有两处例外要知道：
+
+- 之前用 MySQL 跑过抓单的，历史订单还在原来那张 `xianyu_orders` 表里；本次迁移把它
+  原样搬进 `orders.db`（列名一一对齐），搬迁脚本是一次性的，跑完即删。
+- `orders.db` 里是订单原文，和 `data.json` 同级敏感，已进 `.gitignore`。仓库里那份
+  `data.json` 仍是脱敏样例，别拿它当真账本。
 
 ## 启动
 
 ```bat
+:: setup.bat 只建环境、不激活；日常使用先挂上它建出来的那一个，否则用的还是系统 Python
+.venv\Scripts\activate
+
 :: 1) 抓单：首次会弹浏览器要求扫码，登录态存在 .browser_data/ 里可复用
 python xianyu_scraper.py
 python xianyu_scraper.py --login     :: 只验证/补登录态
@@ -80,12 +91,17 @@ python xianyu_review.py --dry-run    :: 只打印标题拆分结果，不起服�
 :: 3) 台账
 python app_standalone.py
 
-:: 或者一个面板全搞定
+:: 或者一个面板全搞定（三个按钮就是上面那三件事）
 python launcher.py
+
+:: 4) 随时复查这台机器：台账 / 图片 / 抓单库 / 浏览器内核 四行
+python selfcheck.py
 ```
 
 端口：台账 `8765`（已有后端在跑时会复用、只新开窗口），填入台 `8766-8776` 依次试探。
-`start.bat` 起的是另一个旧后端，别用它启动台账。
+体检表的台账那一行刻意不去探 `8765`，它探自己那一个 `8865`：常驻着的台账会把这一行顶成假 ok。
+自检也绝不替你起后端，所以后端没跑时那一行报 skip（skip 不算失败，退出码仍是 0），
+其余三行报的是实际查过盘的结果。
 
 ## 数据与文件
 
@@ -94,11 +110,25 @@ python launcher.py
 | `data.json` | 账本本体，裸数组，**数组下标就是记录 id**（改序即改 id，所以只做追加和原地更新）。本仓库随包带的 `data.json` 是几条脱敏样例（序列号与图片已清空），拿来覆盖成你自己的账本即可 |
 | `catalog.json` | 硬件知识库：品类 / 品牌 / 型号的规范名与别名，统计前先归一 |
 | `index.html` | 台账前端，单文件原生 JS，无构建步骤；后端每次请求重读该文件，改完按 F5 即生效 |
-| `db_config.py` | MySQL 配置读取层（`db_secret.py` → 环境变量 → 报错） |
+| `orders.db` | 抓单落地库（SQLite）：抓到的订单原文先进这里，再由填入台核对进 `data.json`。默认就在本目录，想放别处设环境变量 `XIANYU_ORDERS_DB` |
+| `orders_backup_*.json` | 一次性搬迁历史订单时自动导出的库内容备份（含订单原文），跑完就只是留底 |
 
-不进版本控制的：`db_secret.py`、`xianyu_cookies.json`、`.browser_data/`、`images/`（照片原件）、
-`debug_api_responses.json`（抓单原始响应转储，含订单原文）、`data.json.bak`。
-换机器时 `images/` 需要自己拷过去，否则记录里的图片路径会是空图。
+不进版本控制的：`orders.db`、`orders_backup_*.json`、`xianyu_cookies.json`、`.browser_data/`、
+`images/`（照片原件）、`debug_api_responses.json`（抓单原始响应转储，含订单原文）、`data.json.bak`
+（台账与填入台每次写盘前刷新的单代备份），以及 `setup.bat` 装出来的 `.venv/`。
+`data.json` 与 `catalog.json` 是跟着仓库走的例外：账本本体被明确纳入了版本管理，
+所以 `git status` 里 `data.json` 会长期显示为已修改 —— 那是你的业务数据在变。
+别顺手 `git add -A` 把上面那些本机文件一并带进快照。
+
+`tests/test_repo_secrets.py` 是这道门：它既断言该入库的文件真在版本控制里（否则扫描是空转），
+也断言入库文件里没有明文口令赋值、真实订单库永远进不了跟踪列表。
+
+换机要搬的是这四样：`data.json`、`catalog.json`、`images/`、`orders.db`
+（想免扫码登录再带上 `xianyu_cookies.json` 与 `.browser_data/`）。其中 `images/` 与 `orders.db`
+被 `.gitignore` 挡着，clone 或 pull 都拿不到，只能整个目录拷过去；`data.json` 与 `catalog.json`
+虽然跟仓库走，但最新的那一份只在你本机，覆盖之前先想清楚拷贝方向。只拷前两个的话，
+记录里的图片会是空图，`selfcheck.py` 的图片那一行就是报这个的（它按 `data.json` 里的引用
+逐个查盘，引用几张、缺几张都写出来）。
 
 ## 可选：录入辅助
 
@@ -111,6 +141,8 @@ python launcher.py
 python -X utf8 -m pytest tests -q
 ```
 
-后端接口、型号归并、拆分规则、以及上面那道保密闸门都在这里。少数用例把账本记录数写成了
+后端接口、型号归并、拆分规则、抓单存储层的读写、装机步骤表、体检表那四行、上面那道保密闸门，
+外加一条静态守卫 —— 全部入库的 `.md` / `.py` 不许再把已退役的那套当成现存的来写
+（历史规格与计划除外，它们放在 `docs/superpowers/` 下）。少数用例把账本记录数写成了
 断言（`test_migrate_cat.py` / `test_catalog.py` 等）：日常录入让数据变多之后它们会红，
 那是故意留的漂移探针，先核对规格文档再改数字。
