@@ -53,6 +53,41 @@ def _normalize(col, value):
     return value
 
 
+def prepare_row(row):
+    """把 MySQL 回来的一行规整成存储层能直接接手的形状。
+
+    两个错形状只来自 MySQL 读路径（抓取脚本给的是真 float / list / dict），
+    所以修在迁移入口，orders_db 保持薄：
+
+    - price：DECIMAL(10,2) 由 pymysql 变成 decimal.Decimal，而 sqlite3 拒收它
+      （ProgrammingError: Error binding parameter 3），第一行就炸。→ float。
+    - images / raw_data：JSON 列回来是文本，insert_order 会再 json.dumps 一次，
+      库里成了二次编码；fetch_orders_full 只解一层，下游拿到的是 str。→ 先 loads。
+
+    解不开的文本原样留着：把一单的图片静默换成空列表，比后面响亮地对不齐更难查。
+    NULL / 空串规整成 None —— 键存在但值是 None 时，insert_order 里 order.get(col, [])
+    并不会用默认值，json.dumps(None) 存成 'null'，fetch_orders_full 解一层得到 None：
+    既不会读回成 str（那正是上面那个缺陷的形状），也不会被我们凭空换成
+    [] / {} 而让 compare_rows 对着源里的 NULL 报假不一致。
+    """
+    out = dict(row)
+    if out.get("price") is not None:
+        out["price"] = float(out["price"])
+    for col in ("images", "raw_data"):
+        if col not in out:
+            continue
+        value = out[col]
+        if value is None or value == "":
+            out[col] = None
+            continue
+        if isinstance(value, str):
+            try:
+                out[col] = json.loads(value)
+            except ValueError:
+                pass
+    return out
+
+
 def rows_from_mysql():
     import pymysql
     password = os.environ.get("XIANYU_MYSQL_PASSWORD")
@@ -80,7 +115,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     if args.from_mysql:
-        src = rows_from_mysql()
+        src = [prepare_row(r) for r in rows_from_mysql()]
         with open(args.backup, "w", encoding="utf-8") as f:
             json.dump(src, f, ensure_ascii=False, default=str, indent=1)
         print("已导出备份 %s（%d 行）" % (args.backup, len(src)))
@@ -89,6 +124,8 @@ def main(argv=None):
         new_count, dup_count = orders_db.insert_orders(conn, src)
         print("写入完成：新增 %d，已存在跳过 %d" % (new_count, dup_count))
     else:
+        # 校验路径不写库：既不会撞上 Decimal 绑定，也不会二次编码，
+        # 备份里的字符串/对象由 compare_rows 自己归一，不必过 prepare_row。
         with open(args.backup, encoding="utf-8") as f:
             src = json.load(f)
         conn = orders_db.connect()
