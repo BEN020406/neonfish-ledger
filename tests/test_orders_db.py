@@ -14,11 +14,11 @@ def make_conn(tmp_path):
     return conn
 
 
-def order(oid="3316448967004022690", **kw):
+def order(oid="1234567890123456789", **kw):
     base = {
         "order_id": oid,
-        "item_title": "微星PRO H610M-E DDR4主板",
-        "price": 100.0,
+        "item_title": "微星 PRO B650M-P 主板",
+        "price": 4321.0,
         "trade_type": "bought",
         "counterparty": "卖家甲",
         "order_status": "交易成功",
@@ -112,7 +112,7 @@ def test_images_and_raw_data_survive_as_objects(tmp_path):
     conn.commit()
     got = orders_db.fetch_orders_full(conn)[0]
     assert got["images"] == ["images/a.jpg"]
-    assert got["raw_data"] == {"bizOrderId": "3316448967004022690"}
+    assert got["raw_data"] == {"bizOrderId": "1234567890123456789"}
 
 
 def test_fetch_orders_sorted_newest_first(tmp_path):
