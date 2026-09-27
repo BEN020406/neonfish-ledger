@@ -5,7 +5,14 @@ r"""一次性把 MySQL 的 xianyu_orders 搬进 orders.db。跑完即可删除�
     python -X utf8 migrate_orders_to_sqlite.py --from-mysql
 
 不带 --from-mysql 时只做校验：把 orders.db 与之前导出的 JSON 备份再比一遍。
-四条断言任一不过 -> 退出码 1，且不删任何已有数据。
+这一条路径只读：备份文件或库（里的表）不在，就打印一行中文并退出码 1，
+不会顺手创建一个空 orders.db。
+四条断言任一不过 -> 退出码 1，且不删任何已有数据：
+条数 / order_id 集合 / 按 order_id 配不上号的行数 / 对齐后的各列取值。
+
+值的比对按 order_id 对齐，不比位置：两侧都按 order_date DESC, id DESC 读，
+而 id 是两个引擎各的一套自增号，同一天的几单在 SQLite 侧会整体反序，
+所以行的先后不是跨引擎可验证的性质。呈现顺序由 tests/test_orders_db.py 钉住。
 """
 
 import argparse
@@ -19,7 +26,13 @@ _SELECT = "SELECT %s FROM xianyu_orders%s" % (", ".join(orders_db.COLS), orders_
 
 
 def compare_rows(src_rows, dst_rows):
-    """源（MySQL 导出，JSON 列是字符串）与目标（orders.db 读回，JSON 列是对象）四处对照。"""
+    """源（MySQL 导出，JSON 列是字符串）与目标（orders.db 读回，JSON 列是对象）四处对照。
+
+    值一律按 order_id 对齐取，不按位置：两侧都按 NEWEST_FIRST（order_date DESC, id DESC）
+    读，可 id 是两个引擎各起的一套自增号，SQLite 侧按到达顺序编号，同一天的几单
+    读回来会整体反序。位置配对在一模一样的迁移上也会报出假的不一致，所以
+    行的先后在这里不是可验证的性质；呈现顺序由 tests/test_orders_db.py 钉住。
+    """
     problems = []
     if len(src_rows) != len(dst_rows):
         problems.append("条数不等：源 %d，目标 %d" % (len(src_rows), len(dst_rows)))
@@ -29,9 +42,20 @@ def compare_rows(src_rows, dst_rows):
         problems.append("order_id 集合不等：缺 %s，多 %s"
                         % (sorted(set(src_ids) - set(dst_ids)),
                            sorted(set(dst_ids) - set(src_ids))))
-    elif src_ids != dst_ids:
-        problems.append("顺序不等：同一排序下 order_id 序列与源不一致")
-    for srow, drow in zip(src_rows, dst_rows):
+    src_odd, dst_odd = _unalignable(src_rows), _unalignable(dst_rows)
+    if src_odd != dst_odd:
+        problems.append("order_id 配不上号的行不等：源 %d，目标 %d"
+                        "（order_id 为空、或在单侧内部重复的行按号对不上，只能靠位置硬配；"
+                        "这种行一侧少掉时条数和 order_id 集合都看不出来，"
+                        "是数据能悄悄少掉的唯一通道）" % (src_odd, dst_odd))
+    dst_by_id = {}
+    for drow in dst_rows:
+        dst_by_id.setdefault(_pair_key(drow), drow)
+    for srow in src_rows:
+        key = _pair_key(srow)
+        drow = dst_by_id.get(key) if key else None
+        if drow is None:
+            continue                # 只有一侧有的行由集合那条报，不在这里刷一串列名
         for col in orders_db.COLS:
             want = _normalize(col, srow.get(col))
             got = _normalize(col, drow.get(col))
@@ -41,14 +65,43 @@ def compare_rows(src_rows, dst_rows):
     return problems
 
 
+def _pair_key(row):
+    """按 order_id 配对用的键；空 / NULL 不配任何行，返回空串。"""
+    value = row.get("order_id")
+    return "" if value is None or value == "" else str(value)
+
+
+def _unalignable(rows):
+    """数按 order_id 配不上号的行数：order_id 为空，或在一侧内部重复。"""
+    counts = {}
+    for r in rows:
+        key = _pair_key(r)
+        counts[key] = counts.get(key, 0) + 1
+    return sum(n for key, n in counts.items() if not key or n > 1)
+
+
 def _normalize(col, value):
+    """归一到两侧可比的形状；解不开的值原样退回，让它响成一条字段不等而不是抛。
+
+    这里抛出去的话，insert_orders 已经提交、备份已经写盘，屏幕上只剩一段
+    traceback，连「不一致」这一行都没打印。
+    """
     if value is None or value == "":
         return None
     if col == "price":
-        return round(float(value), 2)
+        try:
+            return round(float(value), 2)
+        except (TypeError, ValueError):
+            return value
     if col in ("images", "raw_data"):
-        return json.loads(value) if isinstance(value, str) else value
+        if not isinstance(value, str):
+            return value
+        try:
+            return json.loads(value)
+        except (TypeError, ValueError):
+            return value
     if col == "order_date":
+        # pymysql 给的是 datetime，存储层落的是 ISO 文本，两边都收成文本才判得了等。
         return str(value)
     return value
 
@@ -126,9 +179,27 @@ def main(argv=None):
     else:
         # 校验路径不写库：既不会撞上 Decimal 绑定，也不会二次编码，
         # 备份里的字符串/对象由 compare_rows 自己归一，不必过 prepare_row。
+        # 三个前置检查都在 connect 之前：orders_db.connect 会把库创建出来，
+        # 「只是看一眼」不该留下一个空 orders.db 骗过下次「已经迁移过了」的判断。
+        if not os.path.exists(args.backup):
+            print("找不到备份文件 %s —— 先跑一次 --from-mysql 导出，"
+                  "或用 --backup 指到已有的导出 JSON" % args.backup)
+            return 1
         with open(args.backup, encoding="utf-8") as f:
             src = json.load(f)
+        if not os.path.exists(orders_db.DB_PATH):
+            print("找不到抓单库 %s —— 还没迁移就只做校验没有可比的东西，"
+                  "要迁移请加 --from-mysql" % orders_db.DB_PATH)
+            return 1
         conn = orders_db.connect()
+        has_table = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'xianyu_orders'"
+        ).fetchone()
+        if not has_table:
+            conn.close()
+            print("抓单库 %s 里没有 xianyu_orders 表 —— 它不像是迁移产物，"
+                  "别删它；确认 XIANYU_ORDERS_DB 指对了库再重跑" % orders_db.DB_PATH)
+            return 1
 
     dst = orders_db.fetch_orders_full(conn)
     problems = compare_rows(src, dst)
