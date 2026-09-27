@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS xianyu_orders (
 
 _PENDING_COLS = ("order_id, item_title, price, trade_type, "
                  "counterparty, order_status, order_date")
-_NEWEST_FIRST = " ORDER BY order_date IS NULL, order_date DESC, id DESC"
+_NEWEST_FIRST = " ORDER BY order_date DESC, id DESC"
 
 
 def connect(path=None):
@@ -93,13 +93,22 @@ def insert_order(conn, order):
 
 
 def insert_orders(conn, orders):
-    new_count = dup_count = 0
-    for o in orders or []:
-        if insert_order(conn, o) == "new":
-            new_count += 1
-        else:
-            dup_count += 1
-    conn.commit()
+    """批量写入，整批一次提交。
+
+    任何一行违反约束就回滚整批再抛出：不回滚的话，已经写进去的那几行会留在
+    未结束的事务里，被下一次无关的批量写入一起提交上去。
+    """
+    try:
+        new_count = dup_count = 0
+        for o in orders or []:
+            if insert_order(conn, o) == "new":
+                new_count += 1
+            else:
+                dup_count += 1
+        conn.commit()
+    except sqlite3.Error:
+        conn.rollback()
+        raise
     return new_count, dup_count
 
 
