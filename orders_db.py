@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS xianyu_orders (
 
 _PENDING_COLS = ("order_id, item_title, price, trade_type, "
                  "counterparty, order_status, order_date")
-_NEWEST_FIRST = " ORDER BY order_date DESC, id DESC"
+NEWEST_FIRST = " ORDER BY order_date DESC, id DESC"
 
 
 def connect(path=None):
@@ -113,14 +113,14 @@ def insert_orders(conn, orders):
 
 
 def fetch_orders(conn):
-    rows = conn.execute("SELECT %s FROM xianyu_orders%s" % (_PENDING_COLS, _NEWEST_FIRST)).fetchall()
+    rows = conn.execute("SELECT %s FROM xianyu_orders%s" % (_PENDING_COLS, NEWEST_FIRST)).fetchall()
     return [dict(r) for r in rows]
 
 
 def fetch_orders_full(conn):
     """迁移校验专用：连 images / raw_data 一起读回，JSON 列解成对象。"""
     cols = ", ".join(COLS)
-    rows = conn.execute("SELECT %s FROM xianyu_orders%s" % (cols, _NEWEST_FIRST)).fetchall()
+    rows = conn.execute("SELECT %s FROM xianyu_orders%s" % (cols, NEWEST_FIRST)).fetchall()
     out = []
     for r in rows:
         d = dict(r)
