@@ -3,13 +3,16 @@
 /data.json.bak
 /data_backup.json
 /ledger.db
+# 抓单落地库与它的迁移备份：真实订单原文，与 data.json 同级敏感
 /orders.db
+/orders_backup_*.json
 /backups/
 /images/
 
 # ─── Credentials & browser session state ───
 /xianyu_cookies.json
-# 真实 MySQL 口令不进仓库；模板 db_secret.example.py 才进
+# MySQL 配置层已退役（db_config.py 与模板 db_secret.example.py 都删了），
+# 但本机 db_secret.py 里那串仍是活口令：删掉这行等于给 git add -A 开门
 /db_secret.py
 # 抓单脚本导出的原始接口转储：派生产物且含订单原文
 /debug_api_responses.json
