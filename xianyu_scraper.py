@@ -15,8 +15,9 @@ import re
 import sys
 from datetime import datetime
 
-import pymysql
 from playwright.async_api import async_playwright
+
+import orders_db
 
 # Windows 控制台可能是 GBK，强制 UTF-8 防止打印中文/¥ 时崩溃
 for _s in (sys.stdout, sys.stderr):
@@ -27,8 +28,6 @@ for _s in (sys.stdout, sys.stderr):
 
 # ═══════════════════════ Config ═══════════════════════
 
-from db_config import DB_CONF  # 真口令在本机 db_secret.py，不进版本控制
-
 _DIR = os.path.dirname(os.path.abspath(__file__))
 DEBUG_DUMP = os.path.join(_DIR, "debug_api_responses.json")
 BASE_URL = "https://www.goofish.com"
@@ -36,24 +35,6 @@ BASE_URL = "https://www.goofish.com"
 # 真实买入订单接口（mtop）关键字；登录态有效性以它的 ret 字段为准，
 # 不能靠登录弹窗判断——未登录时首页可正常浏览、不弹登录框
 BOUGHT_API_KW = "trade.bought.list"
-
-# ═══════════════════════ DB Schema ═══════════════════════
-
-CREATE_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS xianyu_orders (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  order_id VARCHAR(64) UNIQUE,
-  item_title VARCHAR(500),
-  price DECIMAL(10,2),
-  trade_type ENUM('sold','bought') DEFAULT 'sold',
-  counterparty VARCHAR(200),
-  order_status VARCHAR(50),
-  order_date DATETIME,
-  images JSON,
-  raw_data JSON,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-"""
 
 # ═══════════════════════ Helpers ═══════════════════════
 
@@ -481,50 +462,29 @@ async def _extract_from_dom(page, trade_type):
     return orders
 
 
-# ═══════════════════════ DB Write ═══════════════════════
+# ═══════════════════════ 落库 ═══════════════════════
+
+def connect():
+    return orders_db.connect()
+
 
 def ensure_table():
-    conn = pymysql.connect(**DB_CONF)
+    conn = connect()
     try:
-        with conn.cursor() as cur:
-            cur.execute(CREATE_TABLE_SQL)
-        conn.commit()
+        orders_db.ensure_schema(conn)
     finally:
         conn.close()
 
 
 def insert_orders(orders):
-    conn = pymysql.connect(**DB_CONF)
-    new_count = 0
-    dup_count = 0
+    conn = connect()
     try:
-        with conn.cursor() as cur:
-            for o in orders:
-                try:
-                    cur.execute(
-                        """INSERT INTO xianyu_orders
-                           (order_id, item_title, price, trade_type,
-                            counterparty, order_status, order_date, images, raw_data)
-                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                        (
-                            o.get("order_id") or None,
-                            o.get("item_title", ""),
-                            o.get("price", 0),
-                            o.get("trade_type", "sold"),
-                            o.get("counterparty", ""),
-                            o.get("order_status", ""),
-                            o.get("order_date"),
-                            json.dumps(o.get("images", []), ensure_ascii=False),
-                            json.dumps(o.get("raw_data", {}), ensure_ascii=False, default=str),
-                        ),
-                    )
-                    new_count += 1
-                except pymysql.err.IntegrityError:
-                    dup_count += 1
-        conn.commit()
+        # 建表在这里再确认一次：主流程是先 ensure_table 再写，但 orders_db.connect
+        # 只创建文件不创建表，少了这句在新库上会直接炸 no such table。
+        orders_db.ensure_schema(conn)
+        return orders_db.insert_orders(conn, orders)
     finally:
         conn.close()
-    return new_count, dup_count
 
 
 # ═══════════════════════ Main ═══════════════════════

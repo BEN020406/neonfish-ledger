@@ -17,8 +17,9 @@ import shutil
 import sys
 import threading
 
-import pymysql
 import webview
+
+import orders_db
 
 for _s in (sys.stdout, sys.stderr):
     try:
@@ -30,9 +31,6 @@ for _s in (sys.stdout, sys.stderr):
 
 PORT_START = 8766
 PORT_END = 8776
-
-# 与 xianyu_scraper.py 共用同一份配置；真口令在本机 db_secret.py，不进版本控制
-from db_config import DB_CONF
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "data.json")
@@ -211,22 +209,17 @@ def _to_float(value, default=0.0):
         return default
 
 
-# ═══════════════════════ MySQL ═══════════════════════
+# ═══════════════════════ 抓单库 ═══════════════════════
 
-_ORDERS_SQL = """
-SELECT order_id, item_title, price, trade_type, counterparty, order_status, order_date
-FROM xianyu_orders
-ORDER BY order_date DESC, id DESC
-"""
+def connect():
+    return orders_db.connect()
 
 
 def fetch_orders():
     done = imported_order_ids()
-    conn = pymysql.connect(**DB_CONF)
+    conn = connect()
     try:
-        with conn.cursor(pymysql.cursors.DictCursor) as cur:
-            cur.execute(_ORDERS_SQL)
-            rows = cur.fetchall()
+        rows = orders_db.fetch_orders(conn)
     finally:
         conn.close()
 
@@ -235,16 +228,14 @@ def fetch_orders():
         title = r.get("item_title") or ""
         brand, model = split_title(title)
         oid = str(r.get("order_id") or "")
-        price = _to_float(r.get("price"))
-        d = r.get("order_date")
         out.append({
             "order_id": oid,
             "item_title": title,
-            "price": price,
+            "price": _to_float(r.get("price")),
             "trade_type": r.get("trade_type") or "",
             "counterparty": r.get("counterparty") or "",
             "order_status": r.get("order_status") or "",
-            "order_date": d.strftime("%Y-%m-%d %H:%M:%S") if d else "",
+            "order_date": str(r.get("order_date") or ""),
             "brand": brand,
             "model": model,
             "imported": oid in done,
