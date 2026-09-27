@@ -1,6 +1,6 @@
 """
 闲鱼 (Goofish) 订单抓取脚本
-使用 Playwright 自动登录并抓取订单数据，写入 MySQL neon_ledger.xianyu_orders
+使用 Playwright 自动登录并抓取订单数据，写入本地抓单库 orders.db
 
 用法:
   python xianyu_scraper.py            # 抓取订单（会话过期时提示扫码重登）
@@ -502,7 +502,7 @@ async def run(debug=False):
                 ensure_table()
                 new, dup = insert_orders(orders)
                 print(f"    新增 {new} 条，跳过重复 {dup} 条")
-                print(f"    -> 表: neon_ledger.xianyu_orders")
+                print("    -> 库: orders.db")
             else:
                 print("[!] 未抓到数据。可能原因:")
                 print("    1. 账号无交易记录")

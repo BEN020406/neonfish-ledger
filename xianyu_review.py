@@ -1,7 +1,7 @@
 """
 闲鱼订单 → 账本 填入台
 
-读 MySQL neon_ledger.xianyu_orders，按日期分组展示；勾选后可改写品牌/型号/成本，
+读本地抓单库 orders.db，按日期分组展示；勾选后可改写品牌/型号/成本，
 再写入 data.json（price → cost，sell 留空，带 source_order_id 去重）。
 
 用法:
