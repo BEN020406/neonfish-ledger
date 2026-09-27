@@ -46,7 +46,10 @@ MUST_NOT_EXIST = ["db_config.py", "db_secret.example.py", "import_to_mysql.py"]
 
 # 本机可以留着、但永远不能进仓库的文件。备份那条写的是通配名而非今天这份真实文件，
 # 断言的是 .gitignore 规则本身，不是"某个碰巧存在的文件恰好被挡住"。
-MUST_BE_IGNORED = ["db_secret.py", "orders.db", "orders_backup_2099-12-31.json"]
+# .venv 那条写的是树里的一个路径：installer.py 每次真装都会在本目录长出这棵树，
+# 漏掉这条规则的话，一次 git add -A 就把整个 site-packages 推上云。
+MUST_BE_IGNORED = ["db_secret.py", "orders.db", "orders_backup_2099-12-31.json",
+                   ".venv/Lib/site-packages/not-for-git.py"]
 
 SCAN_SUFFIX = re.compile(r"\.(py|html|js|json|md|txt|ya?ml|env|ini|cfg|sh|bat)$", re.I)
 

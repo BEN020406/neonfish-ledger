@@ -27,6 +27,8 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 *.log
+# installer.py 双击装出来的虚拟环境：几十万行 site-packages，一次 git add -A 就进云快照
+/.venv/
 
 # ─── Build output & binaries ───
 /dist/
