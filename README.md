@@ -70,8 +70,8 @@ Chromium 是整条流程里唯一要联网的大件（`installer.py` 的 `browse
 
 - 之前用 MySQL 跑过抓单的，历史订单还在原来那张 `xianyu_orders` 表里；本次迁移把它
   原样搬进 `orders.db`（列名一一对齐），搬迁脚本是一次性的，跑完即删。
-- `orders.db` 里是订单原文，和 `data.json` 同级敏感，已进 `.gitignore`。仓库里那份
-  `data.json` 仍是脱敏样例，别拿它当真账本。
+- `orders.db` 里是订单原文，和 `data.json` 同级敏感，已进 `.gitignore`。仓库带的
+  `data.example.json` 是脱敏样例，别拿它当真账本。
 
 ## 启动
 
@@ -107,18 +107,19 @@ python selfcheck.py
 
 | 文件 | 说明 |
 | --- | --- |
-| `data.json` | 账本本体，裸数组，**数组下标就是记录 id**（改序即改 id，所以只做追加和原地更新）。本仓库随包带的 `data.json` 是几条脱敏样例（序列号与图片已清空），拿来覆盖成你自己的账本即可 |
+| `data.json` | 账本本体，裸数组，**数组下标就是记录 id**（改序即改 id，所以只做追加和原地更新）。不进版本控制；首次运行没有它就是空账本，想先看效果把 `data.example.json` 复制一份过来 |
 | `catalog.json` | 硬件知识库：品类 / 品牌 / 型号的规范名与别名，统计前先归一 |
 | `index.html` | 台账前端，单文件原生 JS，无构建步骤；后端每次请求重读该文件，改完按 F5 即生效 |
 | `orders.db` | 抓单落地库（SQLite）：抓到的订单原文先进这里，再由填入台核对进 `data.json`。默认就在本目录，想放别处设环境变量 `XIANYU_ORDERS_DB` |
 | `orders_backup_*.json` | 一次性搬迁历史订单时自动导出的库内容备份（含订单原文），跑完就只是留底 |
 
 不进版本控制的：`orders.db`、`orders_backup_*.json`、`xianyu_cookies.json`、`.browser_data/`、
-`images/`（照片原件）、`debug_api_responses.json`（抓单原始响应转储，含订单原文）、`data.json.bak`
+`images/`（照片原件）、`debug_api_responses.json`（抓单原始响应转储，含订单原文）、`data.json`
+（账本本体，里面有客户号段与真实进价卖价）、`data.json.bak`
 （台账与填入台每次写盘前刷新的单代备份），以及 `setup.bat` 装出来的 `.venv/`。
-`data.json` 与 `catalog.json` 是跟着仓库走的例外：账本本体被明确纳入了版本管理，
-所以 `git status` 里 `data.json` 会长期显示为已修改 —— 那是你的业务数据在变。
-别顺手 `git add -A` 把上面那些本机文件一并带进快照。
+`catalog.json` 是跟着仓库走的例外：它是硬件知识库，不含业务数据。
+别顺手 `git add -A` 把上面那些本机文件一并带进快照 —— `tests/test_repo_secrets.py`
+会因为你真加了 `data.json` 而变红。
 
 `tests/test_repo_secrets.py` 是这道门：它既断言该入库的文件真在版本控制里（否则扫描是空转），
 也断言入库文件里没有明文口令赋值、真实订单库永远进不了跟踪列表。

@@ -30,7 +30,7 @@ MUST_BE_TRACKED = [
     "neon_fish_logo.png",     # 启动器的 logo 素材，缺了就只剩文字
     "app_standalone.py",      # NO_object丰收 账本
     "index.html",
-    "data.json",
+    "data.example.json",      # 脱敏示例账本；真实 data.json 只留本机，永不入库
     "xianyu_scraper.py",      # 闲鱼抓单
     "xianyu_review.py",
     "xianyu_review.html",
@@ -144,6 +144,13 @@ def test_packaged_files_are_actually_tracked():
     tracked = set(_tracked())
     missing = [f for f in MUST_BE_TRACKED if f not in tracked]
     assert not missing, "这些文件没进版本控制，clone 下来是残缺的：%s" % (missing,)
+
+
+def test_real_ledger_stays_untracked():
+    """反向闸门：data.json 一旦入库就红 —— 公开仓里它是整本生意账加客户号段。"""
+    tracked = set(_tracked())
+    assert "data.json" not in tracked, \
+        "data.json 进了版本控制。真实账本只能留本机，公开仓发 data.example.json。"
 
 
 def test_no_plaintext_db_password_in_tracked_files():

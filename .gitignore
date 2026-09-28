@@ -1,5 +1,7 @@
-# ─── Ledger local backups & derived state（data.json 本体已移出忽略、纳入版本管理）───
-# .bak 是后端每次写盘自刷新的单代备份，跟着变进历史只会是噪音；images/ 是二进制照片，单独决定
+# ─── Ledger local backups & derived state ───
+# data.json 是真实账本（含客户号段、进价卖价），只留在本机，永不入库；
+# 新使用者从 data.example.json 复制一份起步。images/ 是二进制照片，单独决定
+/data.json
 /data.json.bak
 /data_backup.json
 /ledger.db

@@ -1,0 +1,86 @@
+[
+  {
+    "brand": "微星",
+    "model": "RTX4080超龙",
+    "cost": 5700.0,
+    "sell": 7700.0,
+    "sn": "",
+    "accessory": "",
+    "accessory_price": "",
+    "extra_price": "",
+    "images": [],
+    "cat": "gpu"
+  },
+  {
+    "brand": "佰维",
+    "model": "dw100 24g*2",
+    "cost": 3600.0,
+    "sell": 4200.0,
+    "sn": "",
+    "accessory": "",
+    "accessory_price": "",
+    "extra_price": "",
+    "images": [],
+    "cat": "ram"
+  },
+  {
+    "brand": "微星",
+    "model": "Z790 edge wifi(14700KF)",
+    "cost": 1700.0,
+    "sell": 3400.0,
+    "sn": "",
+    "accessory": "",
+    "accessory_price": "",
+    "extra_price": "",
+    "cat": "bundle",
+    "images": []
+  },
+  {
+    "brand": "微星",
+    "model": "B650m迫击炮wifi",
+    "cost": 1400.0,
+    "sell": 2800.0,
+    "sn": "",
+    "accessory": "",
+    "accessory_price": "",
+    "extra_price": "",
+    "cat": "board",
+    "images": []
+  },
+  {
+    "brand": "AMD",
+    "model": "5600x",
+    "cost": 2100.0,
+    "sell": 2800.0,
+    "sn": "",
+    "accessory": "",
+    "accessory_price": "",
+    "extra_price": "",
+    "cat": "cpu",
+    "images": []
+  },
+  {
+    "brand": "凯侠",
+    "model": "vd10 2t",
+    "cost": 800.0,
+    "sell": 1400.0,
+    "sn": "",
+    "accessory": "",
+    "accessory_price": "",
+    "extra_price": "",
+    "cat": "ssd",
+    "images": []
+  },
+  {
+    "brand": "微星",
+    "model": "liquid R360",
+    "cost": 70.0,
+    "sell": 300.0,
+    "sn": "",
+    "accessory": "",
+    "accessory_price": "",
+    "extra_price": 0.0,
+    "cat": "cooler",
+    "images": []
+  }
+]
